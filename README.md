@@ -41,9 +41,9 @@ Utilisateurs de test du realm :
 
 L'acces a `http://localhost/mviewerstudio/` redirige vers Keycloak. `oauth2-proxy` autorise uniquement les utilisateurs qui ont le role Keycloak configuré dans `OAUTH2_PROXY_ALLOWED_ROLE`. Par defaut, ce rôle est `MVIEWER_ACCESS` (disponible par défaut à l'installation).
 
-Le role importe par defaut dans Keycloak est `MVIEWER_ACCESS`. Les utilisateurs de test `admin` et `john.doe` le possedent deja. mviewerstudio verifie aussi les roles transmis par `oauth2-proxy` via `MVIEWERSTUDIO_AUTH_ALLOWED_ROLES`, avec la valeur par defaut `MVIEWER_ACCESS`.
+Le role importe par defaut dans Keycloak est `MVIEWER_ACCESS`. Les utilisateurs de test `admin` et `john.doe` le possedent deja. mviewerstudio verifie uniquement qu'une identite authentifiee est transmise par `oauth2-proxy`; la regle d'autorisation par role reste geree dans Keycloak et `oauth2-proxy`.
 
-Le client OIDC importe dans Keycloak est `mviewerstudio`. Ses valeurs locales par defaut sont definies dans `docker/.env.example` :
+Le client OIDC importé dans Keycloak est `mviewerstudio`. Ses valeurs locales par défaut sont definies dans `docker/.env.example` :
 
 - `OAUTH2_PROXY_CLIENT_ID=mviewerstudio`
 - `OAUTH2_PROXY_CLIENT_SECRET=mviewerstudio-local-secret`
@@ -53,7 +53,6 @@ Le client OIDC importe dans Keycloak est `mviewerstudio`. Ses valeurs locales pa
 Pour utiliser un autre role d'acces, creer ou attribuer ce role dans Keycloak, puis adapter :
 
 - `OAUTH2_PROXY_ALLOWED_ROLE=<role_keycloak>`
-- `MVIEWERSTUDIO_AUTH_ALLOWED_ROLES=<role_keycloak>`
 
 Pour utiliser un autre hote ou un autre port public, adapter aussi :
 
