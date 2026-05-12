@@ -1,0 +1,123 @@
+{
+  "realm": "mviewer",
+  "enabled": true,
+
+  "roles": {
+    "realm": [
+      {
+        "name": "ADMIN",
+        "description": "Administrateur mviewer"
+      },
+      {
+        "name": "USERS",
+        "description": "Utilisateur mviewer"
+      },
+      {
+        "name": "MVIEWER_ACCESS",
+        "description": "Autorise l'acces a mviewerstudio"
+      }
+    ]
+  },
+
+  "groups": [
+    {
+      "name": "mviewer"
+    }
+  ],
+
+  "clients": [
+    {
+      "clientId": "mviewerstudio",
+      "name": "mviewerstudio",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "secret": "mviewerstudio-local-secret",
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "redirectUris": [
+        "http://localhost/oauth2/callback",
+        "http://localhost:*/oauth2/callback"
+      ],
+      "webOrigins": [
+        "http://localhost",
+        "http://localhost:*"
+      ],
+      "protocolMappers": [
+        {
+          "name": "realm roles",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-realm-role-mapper",
+          "consentRequired": false,
+          "config": {
+            "multivalued": "true",
+            "userinfo.token.claim": "true",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "claim.name": "roles",
+            "jsonType.label": "String"
+          }
+        },
+        {
+          "name": "mviewerstudio audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.client.audience": "mviewerstudio",
+            "id.token.claim": "true",
+            "access.token.claim": "true"
+          }
+        }
+      ]
+    }
+  ],
+
+  "users": [
+    {
+      "username": "admin",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Admin",
+      "lastName": "Mviewer",
+      "email": "admin@example.local",
+      "groups": [
+        "/mviewer"
+      ],
+      "realmRoles": [
+        "ADMIN",
+        "MVIEWER_ACCESS"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "admin",
+          "temporary": false
+        }
+      ]
+    },
+    {
+      "username": "john.doe",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "John",
+      "lastName": "Doe",
+      "email": "john.doe@example.local",
+      "groups": [
+        "/mviewer"
+      ],
+      "realmRoles": [
+        "USERS",
+        "MVIEWER_ACCESS"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "john",
+          "temporary": false
+        }
+      ]
+    }
+  ]
+}

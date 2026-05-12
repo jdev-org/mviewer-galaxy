@@ -1,0 +1,110 @@
+name: mviewer-keycloak
+
+services:
+  proxy:
+    image: nginx:1.27-alpine
+    depends_on:
+      - mviewer
+      - mviewerstudio
+      - keycloak
+      - oauth2-proxy
+    ports:
+      - "${PROXY_HTTP_PORT:-80}:80"
+    volumes:
+      - ./nginx/templates:/etc/nginx/templates:ro
+      - ../resources/mviewer/apps:/usr/share/nginx/html/apps:ro
+    environment:
+      NGINX_HOST: ${NGINX_HOST:-localhost}
+      MVIEWERSTUDIO_URL_PATH_PREFIX: ${MVIEWERSTUDIO_URL_PATH_PREFIX:-mviewerstudio}
+
+  mviewer:
+    image: nginx:1.27-alpine
+    volumes:
+      - ../../mviewer:/usr/share/nginx/html:ro
+      - ../resources/mviewer/apps:/usr/share/nginx/html/apps:ro
+
+  mviewerstudio:
+    build:
+      context: ../../../jdev/mviewerstudio
+      dockerfile: docker/Dockerfile
+    pull_policy: build
+    image: mviewer/mviewerstudio:keycloak
+    environment:
+      CONF_PATH_FROM_MVIEWER: apps/store
+      CONF_PUBLISH_PATH_FROM_MVIEWER: apps/public
+      DEFAULT_ORG: ${MVIEWERSTUDIO_DEFAULT_ORG:-public}
+      EXPORT_CONF_FOLDER: /home/mvuser/apps/store
+      MVIEWERSTUDIO_AUTH_TYPE: keycloak
+      MVIEWERSTUDIO_AUTH_ALLOWED_ROLES: ${MVIEWERSTUDIO_AUTH_ALLOWED_ROLES:-MVIEWER_ACCESS}
+      MVIEWERSTUDIO_PUBLISH_PATH: /home/mvuser/apps/public
+      MVIEWERSTUDIO_URL_PATH_PREFIX: ${MVIEWERSTUDIO_URL_PATH_PREFIX:-mviewerstudio}
+    volumes:
+      - ../resources/mviewer/apps:/home/mvuser/apps
+      - ../resources/mviewerstudio/config.json:/home/mvuser/src/static/config.json:ro
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-keycloak}
+      POSTGRES_USER: ${POSTGRES_USER:-keycloak}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.2
+    command: start-dev --import-realm
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      KC_DB: postgres
+      KC_DB_URL_HOST: postgres
+      KC_DB_URL_DATABASE: ${POSTGRES_DB:-keycloak}
+      KC_DB_USERNAME: ${POSTGRES_USER:-keycloak}
+      KC_DB_PASSWORD: ${POSTGRES_PASSWORD:-change-me}
+      KC_HTTP_ENABLED: "true"
+      KC_HTTP_RELATIVE_PATH: /keycloak
+      KC_PROXY_HEADERS: xforwarded
+      KC_HOSTNAME: ${KEYCLOAK_HOSTNAME:-http://localhost/keycloak}
+      KC_HOSTNAME_STRICT: "false"
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN:-admin}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-admin}
+    volumes:
+      - ../resources/keycloak/mviewer-realm.json:/opt/keycloak/data/import/mviewer-realm.json:ro
+
+  oauth2-proxy:
+    image: quay.io/oauth2-proxy/oauth2-proxy:v7.8.2
+    depends_on:
+      - keycloak
+    command:
+      - --http-address=0.0.0.0:4180
+      - --provider=keycloak-oidc
+      - --skip-oidc-discovery=true
+      - --oidc-issuer-url=${OAUTH2_PROXY_OIDC_ISSUER_URL:-http://localhost/keycloak/realms/mviewer}
+      - --login-url=${OAUTH2_PROXY_LOGIN_URL:-http://localhost/keycloak/realms/mviewer/protocol/openid-connect/auth}
+      - --redeem-url=http://keycloak:8080/keycloak/realms/mviewer/protocol/openid-connect/token
+      - --oidc-jwks-url=http://keycloak:8080/keycloak/realms/mviewer/protocol/openid-connect/certs
+      - --redirect-url=${OAUTH2_PROXY_REDIRECT_URL:-http://localhost/oauth2/callback}
+      - --scope=openid email profile roles
+      - --email-domain=*
+      - --allowed-role=${OAUTH2_PROXY_ALLOWED_ROLE:-MVIEWER_ACCESS}
+      - --reverse-proxy=true
+      - --cookie-secure=false
+      - --cookie-samesite=lax
+      - --cookie-secret=${OAUTH2_PROXY_COOKIE_SECRET:-0123456789abcdef0123456789abcdef}
+      - --client-id=${OAUTH2_PROXY_CLIENT_ID:-mviewerstudio}
+      - --client-secret=${OAUTH2_PROXY_CLIENT_SECRET:-mviewerstudio-local-secret}
+      - --set-xauthrequest=true
+      - --set-authorization-header=true
+      - --pass-access-token=true
+      - --pass-user-headers=true
+      - --oidc-groups-claim=roles
+
+volumes:
+  postgres_data:
