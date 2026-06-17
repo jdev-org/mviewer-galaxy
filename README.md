@@ -3,8 +3,8 @@
 Cette composition lance :
 
 - `proxy` : reverse-proxy nginx expose sur `http://localhost`
-- `mviewer` : le code statique de `../mviewer` servi par nginx avec les apps de `keycloak/resources/mviewer/apps`
-- `mviewerstudio` : image construite depuis `../mviewerstudio` avec la configuration `keycloak/resources/mviewerstudio/config.json`
+- `mviewer` : l'image `mviewer/mviewer` avec les apps de `resources/mviewer/apps`
+- `mviewerstudio` : image construite depuis `../mviewerstudio` avec une configuration generee depuis `docker/mviewerstudio/templates/config.json.template`
 - `postgres` : base PostgreSQL de Keycloak
 - `keycloak` : Keycloak expose derriere `/keycloak` avec import du realm `resources/keycloak/mviewer-realm.json`
 - `oauth2-proxy` : proxy OIDC qui protege l'acces a mviewerstudio avec Keycloak
@@ -13,15 +13,14 @@ Cette composition lance :
 
 ```bash
 cd docker
-cp .env.example .env
-docker compose up --build
+./compose.sh up --build
 ```
 
 Si la stack avait deja ete lancee avant l'ajout du client OIDC, recreer le volume Keycloak pour rejouer l'import du realm :
 
 ```bash
-docker compose down -v
-docker compose up --build
+./compose.sh down -v
+./compose.sh up --build
 ```
 
 URLs par defaut :
@@ -43,7 +42,7 @@ L'acces a `http://localhost/mviewerstudio/` redirige vers Keycloak. `oauth2-prox
 
 Le role importe par defaut dans Keycloak est `MVIEWER_ACCESS`. Les utilisateurs de test `admin` et `john.doe` le possedent deja. mviewerstudio verifie uniquement qu'une identite authentifiee est transmise par `oauth2-proxy`; la regle d'autorisation par role reste geree dans Keycloak et `oauth2-proxy`.
 
-Le client OIDC importé dans Keycloak est `mviewerstudio`. Ses valeurs locales par défaut sont definies dans `docker/.env.example` :
+Le client OIDC importe dans Keycloak est `mviewerstudio`. Ses valeurs locales par defaut sont definies dans `docker/.env.docker` :
 
 - `OAUTH2_PROXY_CLIENT_ID=mviewerstudio`
 - `OAUTH2_PROXY_CLIENT_SECRET=mviewerstudio-local-secret`
@@ -65,7 +64,7 @@ et ajouter l'URL de callback correspondante dans le client Keycloak `mviewerstud
 
 ## Notes
 
-- Les mots de passe de `.env.example` sont uniquement prevus pour un environnement local.
+- Les mots de passe de `.env.docker` sont uniquement prevus pour un environnement local.
 - Les secrets `OAUTH2_PROXY_CLIENT_SECRET` et `OAUTH2_PROXY_COOKIE_SECRET` doivent etre remplaces avant tout deploiement partage ou expose.
 - Le dossier local `resources/mviewer/apps` est partage entre mviewer, mviewerstudio et le proxy pour les configurations generees.
-- Pour changer le port HTTP local, modifier `PROXY_HTTP_PORT` dans `.env`.
+- Pour changer le port HTTP local, modifier `PROXY_HTTP_PORT` dans `.env.docker`.
