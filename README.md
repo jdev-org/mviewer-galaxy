@@ -1,70 +1,65 @@
-# Stack Docker mviewer + mviewerstudio + Keycloak
+# mviewer-galaxy
 
-Cette composition lance :
+`mviewer-galaxy` regroupe un environnement d'intégration autour de `mviewer` et `mviewerstudio`, avec plusieurs variantes d'authentification et une base de déploiement Docker.
 
-- `proxy` : reverse-proxy nginx expose sur `http://localhost`
-- `mviewer` : l'image `mviewer/mviewer` avec les apps de `resources/mviewer/apps`
-- `mviewerstudio` : image construite depuis `../mviewerstudio` avec une configuration generee depuis `docker/mviewerstudio/templates/config.json.template`
-- `postgres` : base PostgreSQL de Keycloak
-- `keycloak` : Keycloak expose derriere `/keycloak` avec import du realm `resources/keycloak/mviewer-realm.json`
-- `oauth2-proxy` : proxy OIDC qui protege l'acces a mviewerstudio avec Keycloak
+L'objectif est de fournir un espace autonome pour :
 
-## Demarrage
+- lancer `mviewer` et `mviewerstudio` ensemble ;
+- tester une authentification OIDC avec Keycloak ;
+- raccorder la stack à un Keycloak déjà existant ;
+- documenter les flux de connexion et de déconnexion ;
+- préparer un déploiement derrière un nginx déjà présent sur le serveur.
+
+## Ce que contient le projet
+
+- [docker](./docker/README.md) : compositions Docker, templates nginx, variables d'environnement et guide de lancement.
+- `resources/keycloak/mviewer-realm.json` : realm Keycloak d'exemple pour les tests locaux.
+- `resources/mviewerstudio/config.json` : configuration générée pour `mviewerstudio`.
+- `schemas/` : schémas d'architecture et de flux autour d'`oauth2-proxy`, du login et du logout.
+
+## Variantes disponibles
+
+Le dossier `docker/` fournit plusieurs modes de fonctionnement :
+
+- base : `proxy`, `mviewer`, `mviewerstudio`
+- Keycloak local : ajoute `postgres`, `keycloak`, `oauth2-proxy`
+- Keycloak externe : conserve la stack applicative et pointe vers un serveur Keycloak existant
+- gateway : variante simplifiée pour un environnement où l'authentification est déjà gérée en amont
+
+Le scénario recommandé pour une mise en production est :
+
+- un nginx déjà déployé sur le serveur assure la terminaison TLS ;
+- ce nginx relaie vers le service `proxy` de la stack Docker ;
+- la stack utilise la variante `keycloak-external` si l'IdP existe déjà.
+
+## Démarrage
+
+Le point d'entrée principal est le guide du dossier Docker :
+
+- [Guide Docker](./docker/README.md)
+
+Exemple courant avec Keycloak déjà existant :
 
 ```bash
 cd docker
-./compose.sh up --build
+./compose.sh -f docker-compose.yml -f docker-compose.keycloak-external.yml up --build
 ```
 
-Si la stack avait deja ete lancee avant l'ajout du client OIDC, recreer le volume Keycloak pour rejouer l'import du realm :
+## Authentification
 
-```bash
-./compose.sh down -v
-./compose.sh up --build
-```
+Selon la variante choisie, l'authentification peut être :
 
-URLs par defaut :
+- gérée localement par `oauth2-proxy` + Keycloak ;
+- déléguée à un Keycloak externe ;
+- ou transmise par une gateway amont via des en-têtes HTTP.
 
-- mviewerstudio : `http://localhost/mviewerstudio/`
-- mviewer : `http://localhost/mviewer/`
-- Keycloak : `http://localhost/keycloak/`
+Les schémas de référence sont dans :
 
-Identifiants Keycloak par defaut : `admin` / `admin`.
+- [archi_oauth2-proxy_schema_login.md](./schemas/archi_oauth2-proxy_schema_login.md)
+- [archi_oauth2-proxy_schema_logout.md](./schemas/archi_oauth2-proxy_schema_logout.md)
 
-Realm importe par defaut : `mviewer`.
+## Documentation complémentaire
 
-Utilisateurs de test du realm :
+- [README Docker](./docker/README.md)
 
-- `admin` / `admin`
-- `john.doe` / `john`
-
-L'acces a `http://localhost/mviewerstudio/` redirige vers Keycloak. `oauth2-proxy` autorise uniquement les utilisateurs qui ont le role Keycloak configuré dans `OAUTH2_PROXY_ALLOWED_ROLE`. Par defaut, ce rôle est `MVIEWER_ACCESS` (disponible par défaut à l'installation).
-
-Le role importe par defaut dans Keycloak est `MVIEWER_ACCESS`. Les utilisateurs de test `admin` et `john.doe` le possedent deja. mviewerstudio verifie uniquement qu'une identite authentifiee est transmise par `oauth2-proxy`; la regle d'autorisation par role reste geree dans Keycloak et `oauth2-proxy`.
-
-Le client OIDC importe dans Keycloak est `mviewerstudio`. Ses valeurs locales par defaut sont definies dans `docker/.env.docker` :
-
-- `OAUTH2_PROXY_CLIENT_ID=mviewerstudio`
-- `OAUTH2_PROXY_CLIENT_SECRET=mviewerstudio-local-secret`
-- `OAUTH2_PROXY_COOKIE_SECRET=0123456789abcdef0123456789abcdef`
-- `OAUTH2_PROXY_ALLOWED_ROLE=MVIEWER_ACCESS`
-
-Pour utiliser un autre role d'acces, creer ou attribuer ce role dans Keycloak, puis adapter :
-
-- `OAUTH2_PROXY_ALLOWED_ROLE=<role_keycloak>`
-
-Pour utiliser un autre hote ou un autre port public, adapter aussi :
-
-- `KEYCLOAK_HOSTNAME`
-- `OAUTH2_PROXY_OIDC_ISSUER_URL`
-- `OAUTH2_PROXY_LOGIN_URL`
-- `OAUTH2_PROXY_REDIRECT_URL`
-
-et ajouter l'URL de callback correspondante dans le client Keycloak `mviewerstudio`.
-
-## Notes
-
-- Les mots de passe de `.env.docker` sont uniquement prevus pour un environnement local.
-- Les secrets `OAUTH2_PROXY_CLIENT_SECRET` et `OAUTH2_PROXY_COOKIE_SECRET` doivent etre remplaces avant tout deploiement partage ou expose.
-- Le dossier local `resources/mviewer/apps` est partage entre mviewer, mviewerstudio et le proxy pour les configurations generees.
-- Pour changer le port HTTP local, modifier `PROXY_HTTP_PORT` dans `.env.docker`.
+Ce README racine présente le périmètre du projet. La documentation opérationnelle détaillée est centralisée dans `docker/README.md`.
