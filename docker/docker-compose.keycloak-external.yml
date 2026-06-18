@@ -1,0 +1,52 @@
+name: mviewer-keycloak-external
+
+services:
+  proxy:
+    depends_on:
+      - mviewer
+      - mviewerstudio
+      - oauth2-proxy
+    links:
+      - mviewer
+      - mviewerstudio
+      - oauth2-proxy
+    volumes:
+      - ./nginx/templates/default.conf.template:/etc/nginx/templates/default.conf.template:ro
+      - ../resources/mviewer/apps:/usr/share/nginx/html/apps:ro
+
+  mviewerstudio:
+    image: mviewer/mviewerstudio:keycloak
+    environment:
+      MVIEWERSTUDIO_AUTH_TYPE: keycloak
+
+  oauth2-proxy:
+    env_file:
+      - .env.docker
+    image: quay.io/oauth2-proxy/oauth2-proxy:v7.8.2
+    command:
+      - --http-address=0.0.0.0:4180
+      - --provider=keycloak-oidc
+      - --skip-oidc-discovery=true
+      - --oidc-issuer-url=${OAUTH2_PROXY_OIDC_ISSUER_URL}
+      - --login-url=${OAUTH2_PROXY_LOGIN_URL}
+      - --redeem-url=${OAUTH2_PROXY_REDEEM_URL}
+      - --oidc-jwks-url=${OAUTH2_PROXY_OIDC_JWKS_URL}
+      - --redirect-url=${OAUTH2_PROXY_REDIRECT_URL}
+      - --client-id=${OAUTH2_PROXY_CLIENT_ID}
+      - --client-secret=${OAUTH2_PROXY_CLIENT_SECRET}
+      - --scope=${OAUTH2_PROXY_SCOPE:-openid email profile organization}
+      - --email-domain=*
+      - --allowed-role=${OAUTH2_PROXY_ALLOWED_ROLE:-MVIEWER_ACCESS}
+      - --oidc-groups-claim=${OAUTH2_PROXY_OIDC_GROUPS_CLAIM:-organization}
+      - --reverse-proxy=true
+      - --cookie-secure=${OAUTH2_PROXY_COOKIE_SECURE:-false}
+      - --cookie-samesite=${OAUTH2_PROXY_COOKIE_SAMESITE:-lax}
+      - --cookie-secret=${OAUTH2_PROXY_COOKIE_SECRET}
+      - --set-xauthrequest=true
+      - --set-authorization-header=true
+      - --pass-access-token=true
+      - --pass-user-headers=true
+      - --standard-logging=true
+      - --auth-logging=true
+      - --request-logging=true
+      - --show-debug-on-error=true
