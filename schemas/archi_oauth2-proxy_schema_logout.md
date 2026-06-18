@@ -1,5 +1,4 @@
 
-```markdown
 ```mermaid
 sequenceDiagram
     participant B as Browser
