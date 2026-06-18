@@ -11,7 +11,7 @@ services:
       - mviewerstudio
       - oauth2-proxy
     volumes:
-      - ./nginx/templates/default.conf.template:/etc/nginx/templates/default.conf.template:ro
+      - ./nginx/templates/default.keycloak-external.conf.template:/etc/nginx/templates/default.conf.template:ro
       - ../resources/mviewer/apps:/usr/share/nginx/html/apps:ro
 
   mviewerstudio:
@@ -39,7 +39,7 @@ services:
       - --allowed-role=${OAUTH2_PROXY_ALLOWED_ROLE:-MVIEWER_ACCESS}
       - --oidc-groups-claim=${OAUTH2_PROXY_OIDC_GROUPS_CLAIM:-organization}
       - --reverse-proxy=true
-      - --cookie-secure=${OAUTH2_PROXY_COOKIE_SECURE:-false}
+      - --cookie-secure=${OAUTH2_PROXY_COOKIE_SECURE:-true}
       - --cookie-samesite=${OAUTH2_PROXY_COOKIE_SAMESITE:-lax}
       - --cookie-secret=${OAUTH2_PROXY_COOKIE_SECRET}
       - --set-xauthrequest=true
