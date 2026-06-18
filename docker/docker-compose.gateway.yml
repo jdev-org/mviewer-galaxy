@@ -1,4 +1,4 @@
-name: mviewer-base
+name: mviewer-gateway
 
 services:
   proxy:

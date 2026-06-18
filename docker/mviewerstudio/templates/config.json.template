@@ -18,7 +18,7 @@
             "url": "https://geobretagne.fr/minicatalog/csv"
         },
         "user_info": "api/user",
-        "logout_url": "api/logout",
+        "logout_url": "logout",
         "proxy": "proxy/?url=",
         "user_info_visible": true,
         "auth_type": "${MVIEWERSTUDIO_AUTH_TYPE:-}",

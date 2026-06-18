@@ -1,16 +1,9 @@
-map $arg_config $required_org {
-    default "";
+#map $arg_config $required_org {
+#    default "";
 
-    ~^${MVIEWER_STORE_PATH}/([^/]+)/.*\.xml$ $1;
-    ~^${MVIEWER_PUBLIC_PATH}/([^/]+)/.*\.xml$ $1;
-}
-
-map "$required_org:$auth_groups" $mviewer_forbidden {
-    default 0;
-
-    # Interdit si required_org est non vide et absent de la liste des groupes
-    ~^([^:]+):(?!(?:[^,\r\n]*,)*\s*\1\s*(?:,|$)).*$ 1;
-}
+#    ~^${MVIEWER_STORE_PATH}/(?<store_org>[^/]+)/.*\.xml$   $store_org;
+#    ~^${MVIEWER_PUBLIC_PATH}/(?<public_org>[^/]+)/.*\.xml$ $public_org;
+#}
 
 server {
     listen 80;
@@ -32,23 +25,26 @@ server {
         auth_request /oauth2/auth;
         error_page 401 = @oauth2_start;
 
-        auth_request_set $auth_user $upstream_http_x_auth_request_user;
-        auth_request_set $auth_email $upstream_http_x_auth_request_email;
-        auth_request_set $auth_groups $upstream_http_x_auth_request_groups;
-        auth_request_set $auth_authorization $upstream_http_authorization;
-        auth_request_set $auth_cookie $upstream_http_set_cookie;
+        auth_request_set $auth_user
+            $upstream_http_x_auth_request_user;
+        auth_request_set $auth_email
+            $upstream_http_x_auth_request_email;
+        auth_request_set $auth_groups
+            $upstream_http_x_auth_request_groups;
+        auth_request_set $auth_cookie
+            $upstream_http_set_cookie;
+        auth_request_set $auth_access_token
+            $upstream_http_x_auth_request_access_token;
 
-        add_header Set-Cookie $auth_cookie;
-
-        if ($mviewer_forbidden = 1) {
-            return 403;
-        }
+        add_header Set-Cookie $auth_cookie always;
 
         proxy_set_header X-Auth-Request-User $auth_user;
         proxy_set_header X-Auth-Request-Email $auth_email;
         proxy_set_header X-Auth-Request-Groups $auth_groups;
+        proxy_set_header X-Auth-Request-Access-Token $auth_access_token;
+
         proxy_set_header X-Organizations $auth_groups;
-        proxy_set_header Authorization $auth_authorization;
+        proxy_set_header X-Required-Organization $required_org;
 
         proxy_pass http://mviewer:8080/;
     }
@@ -63,14 +59,18 @@ server {
 
     location /oauth2/ {
         proxy_pass http://oauth2-proxy:4180;
+
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Auth-Request-Redirect
+            $scheme://$host$request_uri;
     }
 
     location = /oauth2/auth {
         internal;
+
         proxy_pass http://oauth2-proxy:4180/oauth2/auth;
         proxy_pass_request_body off;
 
@@ -79,38 +79,49 @@ server {
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_set_header X-Auth-Request-Redirect $scheme://$host$request_uri;
+        proxy_set_header X-Auth-Request-Redirect
+            $scheme://$host$request_uri;
     }
 
     location /${MVIEWERSTUDIO_URL_PATH_PREFIX}/ {
         auth_request /oauth2/auth;
         error_page 401 = @oauth2_start;
 
-        auth_request_set $auth_user $upstream_http_x_auth_request_user;
-        auth_request_set $auth_email $upstream_http_x_auth_request_email;
-        auth_request_set $auth_preferred_username $upstream_http_x_auth_request_preferred_username;
-        auth_request_set $auth_given_name $upstream_http_x_auth_request_given_name;
-        auth_request_set $auth_family_name $upstream_http_x_auth_request_family_name;
-        auth_request_set $auth_groups $upstream_http_x_auth_request_groups;
-        auth_request_set $auth_authorization $upstream_http_authorization;
-        auth_request_set $auth_cookie $upstream_http_set_cookie;
+        auth_request_set $auth_user
+            $upstream_http_x_auth_request_user;
+        auth_request_set $auth_email
+            $upstream_http_x_auth_request_email;
+        auth_request_set $auth_preferred_username
+            $upstream_http_x_auth_request_preferred_username;
+        auth_request_set $auth_given_name
+            $upstream_http_x_auth_request_given_name;
+        auth_request_set $auth_family_name
+            $upstream_http_x_auth_request_family_name;
+        auth_request_set $auth_groups
+            $upstream_http_x_auth_request_groups;
+        auth_request_set $auth_cookie
+            $upstream_http_set_cookie;
+        auth_request_set $auth_access_token
+            $upstream_http_x_auth_request_access_token;
 
-        add_header Set-Cookie $auth_cookie;
+        add_header Set-Cookie $auth_cookie always;
 
         proxy_set_header X-Auth-Request-User $auth_user;
         proxy_set_header X-Auth-Request-Email $auth_email;
-        proxy_set_header X-Auth-Request-Preferred-Username $auth_preferred_username;
+        proxy_set_header X-Auth-Request-Preferred-Username
+            $auth_preferred_username;
         proxy_set_header X-Auth-Request-Given-Name $auth_given_name;
         proxy_set_header X-Auth-Request-Family-Name $auth_family_name;
         proxy_set_header X-Auth-Request-Groups $auth_groups;
+        proxy_set_header X-Auth-Request-Access-Token $auth_access_token;
         proxy_set_header X-Organizations $auth_groups;
-        proxy_set_header Authorization $auth_authorization;
+        proxy_set_header X-Forwarded-Access-Token $auth_access_token;
 
         proxy_pass http://mviewerstudio:8000/${MVIEWERSTUDIO_URL_PATH_PREFIX}/;
     }
 
     location @oauth2_start {
-        return 302 /oauth2/start?rd=$request_uri;
+        return 302 /oauth2/start?rd=$scheme://$host$request_uri;
     }
 
     location = /keycloak {
