@@ -1,6 +1,4 @@
 
-Version avec logout aussi:
-
 ```markdown
 ```mermaid
 sequenceDiagram
