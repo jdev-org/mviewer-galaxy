@@ -1,13 +1,12 @@
-#map $arg_config $required_org {
-#    default "";
-
-#    ~^${MVIEWER_STORE_PATH}/(?<store_org>[^/]+)/.*\.xml$   $store_org;
-#    ~^${MVIEWER_PUBLIC_PATH}/(?<public_org>[^/]+)/.*\.xml$ $public_org;
-#}
-
 server {
     listen 80;
     server_name ${NGINX_HOST};
+    resolver 127.0.0.11 ipv6=off;
+
+    proxy_buffer_size 32k;
+    proxy_buffers 8 32k;
+    proxy_busy_buffers_size 64k;
+    large_client_header_buffers 4 32k;
 
     client_max_body_size 20m;
 
@@ -25,32 +24,53 @@ server {
         auth_request /oauth2/auth;
         error_page 401 = @oauth2_start;
 
-        auth_request_set $auth_user
-            $upstream_http_x_auth_request_user;
-        auth_request_set $auth_email
-            $upstream_http_x_auth_request_email;
-        auth_request_set $auth_groups
-            $upstream_http_x_auth_request_groups;
-        auth_request_set $auth_cookie
-            $upstream_http_set_cookie;
-        auth_request_set $auth_access_token
-            $upstream_http_x_auth_request_access_token;
-
-        add_header Set-Cookie $auth_cookie always;
-
-        proxy_set_header X-Auth-Request-User $auth_user;
-        proxy_set_header X-Auth-Request-Email $auth_email;
-        proxy_set_header X-Auth-Request-Groups $auth_groups;
-        proxy_set_header X-Auth-Request-Access-Token $auth_access_token;
-
-        proxy_set_header X-Organizations $auth_groups;
-        proxy_set_header X-Required-Organization $required_org;
-
-        proxy_pass http://mviewer:8080/;
+        set $mviewer_upstream mviewer:8080;
+        rewrite ^/mviewer/(.*)$ /$1 break;
+        proxy_pass http://$mviewer_upstream;
     }
 
     location /apps/ {
         alias /usr/share/nginx/html/apps/;
+    }
+
+    location = /geoserver {
+        return 301 /geoserver/;
+    }
+
+    location /geoserver/ {
+        proxy_set_header Host              $host;
+        proxy_set_header X-Real-IP         $remote_addr;
+        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Host  $host;
+        proxy_set_header X-Forwarded-Prefix /geoserver;
+
+        proxy_redirect http://geoserver:8080/geoserver/ /geoserver/;
+        proxy_redirect /geoserver/ /geoserver/;
+
+        proxy_cookie_path /geoserver /geoserver;
+        proxy_cookie_path / /geoserver/;
+
+        set $geoserver_upstream geoserver:8080;
+        proxy_pass http://$geoserver_upstream;
+    }
+
+    location /geoserverold/ {
+        proxy_set_header Host              $host;
+        proxy_set_header X-Real-IP         $remote_addr;
+        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Host  $host;
+        proxy_set_header X-Forwarded-Prefix /geoserver;
+
+        proxy_redirect http://geoserver:8080/geoserver/ /geoserver/;
+        proxy_redirect /geoserver/ /geoserver/;
+
+        proxy_cookie_path /geoserver /geoserver;
+        proxy_cookie_path / /geoserver/;
+
+        set $geoserver_upstream geoserver:8080;
+        proxy_pass http://$geoserver_upstream;
     }
 
     location = /${MVIEWERSTUDIO_URL_PATH_PREFIX} {
@@ -58,7 +78,8 @@ server {
     }
 
     location /oauth2/ {
-        proxy_pass http://oauth2-proxy:4180;
+        set $oauth2_proxy_upstream oauth2-proxy:4180;
+        proxy_pass http://$oauth2_proxy_upstream$request_uri;
 
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
@@ -71,7 +92,8 @@ server {
     location = /oauth2/auth {
         internal;
 
-        proxy_pass http://oauth2-proxy:4180/oauth2/auth;
+        set $oauth2_proxy_upstream oauth2-proxy:4180;
+        proxy_pass http://$oauth2_proxy_upstream$request_uri;
         proxy_pass_request_body off;
 
         proxy_set_header Content-Length "";
@@ -81,6 +103,27 @@ server {
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_set_header X-Auth-Request-Redirect
             $scheme://$host$request_uri;
+    }
+
+    location = /oauth2/debug {
+        auth_request /oauth2/auth;
+        error_page 401 = @oauth2_start;
+
+        auth_request_set $auth_user
+            $upstream_http_x_auth_request_user;
+        auth_request_set $auth_email
+            $upstream_http_x_auth_request_email;
+        auth_request_set $auth_preferred_username
+            $upstream_http_x_auth_request_preferred_username;
+        auth_request_set $auth_groups
+            $upstream_http_x_auth_request_groups;
+        add_header X-Debug-Auth-User $auth_user always;
+        add_header X-Debug-Preferred-Username $auth_preferred_username always;
+        add_header X-Debug-Auth-Email $auth_email always;
+        add_header X-Debug-Auth-Groups $auth_groups always;
+
+        set $oauth2_proxy_upstream oauth2-proxy:4180;
+        proxy_pass http://$oauth2_proxy_upstream/ping;
     }
 
     location /${MVIEWERSTUDIO_URL_PATH_PREFIX}/ {
@@ -117,7 +160,8 @@ server {
         proxy_set_header X-Organizations $auth_groups;
         proxy_set_header X-Forwarded-Access-Token $auth_access_token;
 
-        proxy_pass http://mviewerstudio:8000/${MVIEWERSTUDIO_URL_PATH_PREFIX}/;
+        set $mviewerstudio_upstream mviewerstudio:8000;
+        proxy_pass http://$mviewerstudio_upstream$request_uri;
     }
 
     location @oauth2_start {
@@ -129,7 +173,8 @@ server {
     }
 
     location /keycloak/ {
-        proxy_pass http://keycloak:8080/keycloak/;
+        set $keycloak_upstream keycloak:8080;
+        proxy_pass http://$keycloak_upstream$request_uri;
     }
 
     location / {

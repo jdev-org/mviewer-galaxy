@@ -1,0 +1,75 @@
+name: mviewer-base
+
+services:
+  geoserver:
+    image: docker.osgeo.org/geoserver:2.28.0
+    restart: unless-stopped
+    ports:
+      - "${GEOSERVER_HTTP_PORT:-8081}:8080"
+    environment:
+      SKIP_DEMO_DATA: "true"
+      CORS_ENABLED: "true"
+      STABLE_EXTENSIONS: "wps,vectortiles,querylayer,printing,css"
+      COMMUNITY_EXTENSIONS: "sec-oidc"
+      INSTALL_EXTENSIONS: "true"
+      PROXY_BASE_URL: "${GEOSERVER_PROXY_BASE_URL:-http://localhost/geoserver}"
+    volumes:
+      - ../resources/geoserver/datadir:/opt/geoserver_data
+  proxy:
+    image: nginx:1.27-alpine
+    depends_on:
+      - geoserver
+      - mviewer
+      - mviewerstudio
+    links:
+      - geoserver
+      - mviewer
+      - mviewerstudio
+    ports:
+      - target: 80
+        published: "${PROXY_HTTP_PORT:-80}"
+        protocol: tcp
+        host_ip: "${PROXY_HTTP_HOST_IP:-0.0.0.0}"
+    volumes:
+      - ./nginx/templates/default.conf.template:/etc/nginx/templates/default.conf.template:ro
+      - ../resources/mviewer/apps:/usr/share/nginx/html/apps:ro
+    env_file:
+      - .env.docker
+    environment:
+      NGINX_HOST: ${NGINX_HOST:-localhost}
+      MVIEWERSTUDIO_URL_PATH_PREFIX: ${MVIEWERSTUDIO_URL_PATH_PREFIX:-mviewerstudio}
+
+  mviewer:
+    image: mviewer/mviewer
+    volumes:
+      - ../resources/mviewer/apps:/usr/share/nginx/html/apps:ro
+
+  mviewerstudio:
+    build:
+      context: /home/gaetan/projects/jdev/mviewerstudio
+      dockerfile: docker/Dockerfile
+    pull_policy: build
+    image: mviewer/mviewerstudio:galaxy
+    command:
+      - /bin/sh
+      - -c
+      - >
+        python /opt/mviewerstudio/render_config.py
+        /opt/mviewerstudio/templates/config.json.template
+        ${USER_HOME:-/home/mvuser}/src/static/config.json &&
+        exec gunicorn -w 1 -b 0.0.0.0:8000 src.app:app
+    env_file:
+      - .env.docker
+    environment:
+      CONF_PATH_FROM_MVIEWER: ${MVIEWER_STORE_PATH:-apps/store}
+      CONF_PUBLISH_PATH_FROM_MVIEWER: ${MVIEWER_PUBLIC_PATH:-apps/public}
+      DEFAULT_ORG: ${MVIEWERSTUDIO_DEFAULT_ORG:-public}
+      EXPORT_CONF_FOLDER: ${USER_HOME:-/home/mvuser}/${MVIEWER_STORE_PATH:-apps/store}
+      MVIEWERSTUDIO_AUTH_TYPE: ${MVIEWERSTUDIO_AUTH_TYPE:-georchestra}
+      MVIEWERSTUDIO_AUTH_ALLOWED_ROLES: ${MVIEWERSTUDIO_AUTH_ALLOWED_ROLES:-MVIEWER_ACCESS}
+      MVIEWERSTUDIO_PUBLISH_PATH: ${USER_HOME:-/home/mvuser}/apps/public
+      MVIEWERSTUDIO_URL_PATH_PREFIX: ${MVIEWERSTUDIO_URL_PATH_PREFIX:-mviewerstudio}
+    volumes:
+      - ../resources/mviewer/apps:${USER_HOME:-/home/mvuser}/apps
+      - ./mviewerstudio/templates:/opt/mviewerstudio/templates:ro
+      - ./mviewerstudio/render_config.py:/opt/mviewerstudio/render_config.py:ro

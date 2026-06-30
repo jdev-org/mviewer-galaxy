@@ -3,10 +3,12 @@ name: mviewer-keycloak-external
 services:
   proxy:
     depends_on:
+      - geoserver
       - mviewer
       - mviewerstudio
       - oauth2-proxy
     links:
+      - geoserver
       - mviewer
       - mviewerstudio
       - oauth2-proxy
@@ -34,7 +36,7 @@ services:
       - --redirect-url=${OAUTH2_PROXY_REDIRECT_URL}
       - --client-id=${OAUTH2_PROXY_CLIENT_ID}
       - --client-secret=${OAUTH2_PROXY_CLIENT_SECRET}
-      - --scope=${OAUTH2_PROXY_SCOPE:-openid email profile organization}
+      - --scope=${OAUTH2_PROXY_SCOPE:-openid email profile organization roles}
       - --email-domain=*
       - --allowed-role=${OAUTH2_PROXY_ALLOWED_ROLE:-MVIEWER_ACCESS}
       - --oidc-groups-claim=${OAUTH2_PROXY_OIDC_GROUPS_CLAIM:-organization}

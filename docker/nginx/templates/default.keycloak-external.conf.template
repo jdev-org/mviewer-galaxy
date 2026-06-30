@@ -1,9 +1,8 @@
-#map $arg_config $required_org {
-#    default "";
-#
-#    ~^${MVIEWER_STORE_PATH}/(?<store_org>[^/]+)/.*\.xml$   $store_org;
-#    ~^${MVIEWER_PUBLIC_PATH}/(?<public_org>[^/]+)/.*\.xml$ $public_org;
-#}
+map $arg_config $required_org {
+    default "";
+    ~^${MVIEWER_STORE_PATH}/(?<store_org>[^/]+)/.*\.xml$   $store_org;
+    ~^${MVIEWER_PUBLIC_PATH}/(?<public_org>[^/]+)/.*\.xml$ $public_org;
+}
 
 server {
     listen 80;
@@ -51,6 +50,42 @@ server {
 
     location /apps/ {
         alias /usr/share/nginx/html/apps/;
+    }
+
+    location = /geoserver {
+        return 302 /geoserver/;
+    }
+
+    location /geoserver/ {
+        proxy_set_header Host              $host;
+        proxy_set_header X-Real-IP         $remote_addr;
+        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Host  $host;
+        proxy_set_header X-Forwarded-Prefix /geoserver;
+
+        proxy_redirect http://geoserver:8080/geoserver/ /geoserver/;
+        proxy_redirect /geoserver/ /geoserver/;
+
+        proxy_pass http://geoserver:8080;
+    }
+
+    location = /geoserver-local {
+        return 302 /geoserver-local/;
+    }
+
+    location /geoserver-local/ {
+        proxy_set_header Host              $host;
+        proxy_set_header X-Real-IP         $remote_addr;
+        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Host  $host;
+        proxy_set_header X-Forwarded-Prefix /geoserver-local;
+
+        proxy_redirect http://geoserver:8080/geoserver/ /geoserver-local/;
+        proxy_redirect /geoserver/ /geoserver-local/;
+
+        proxy_pass http://geoserver:8080/geoserver/;
     }
 
     location = /${MVIEWERSTUDIO_URL_PATH_PREFIX} {

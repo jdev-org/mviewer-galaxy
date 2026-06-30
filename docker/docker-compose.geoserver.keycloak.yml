@@ -1,0 +1,46 @@
+name: mviewer-lite
+
+services:
+  geoserver:
+    image: docker.osgeo.org/geoserver:2.28.0
+    restart: unless-stopped
+    environment:
+      SKIP_DEMO_DATA: "true"
+      CORS_ENABLED: "true"
+      GEOSERVER_VERSION: "2.28-SNAPSHOT"
+      STABLE_EXTENSIONS: "wps,vectortiles,querylayer"
+      COMMUNITY_EXTENSIONS: "sec-oidc"
+      COMMUNITY_PLUGIN_URL: "https://build.geoserver.org/geoserver/2.28.x/community-latest"
+      INSTALL_EXTENSIONS: "true"
+      PROXY_BASE_URL: "http://localhost/geoserver"
+    volumes:
+      - ../resources/geoserver/datadir:/opt/geoserver_data
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.2
+    command: start-dev --import-realm
+    environment:
+      KC_HTTP_ENABLED: "true"
+      KC_HTTP_RELATIVE_PATH: /keycloak
+      KC_PROXY_HEADERS: xforwarded
+      KC_HOSTNAME: http://localhost/keycloak
+      KC_HOSTNAME_STRICT: "false"
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+    volumes:
+      - ../resources/keycloak/mviewer-realm.json:/opt/keycloak/data/import/mviewer-realm.json:ro
+
+  proxy:
+    image: nginx:1.27-alpine
+    depends_on:
+      - geoserver
+      - keycloak
+    ports:
+      - target: 80
+        published: "80"
+        protocol: tcp
+        host_ip: "0.0.0.0"
+    volumes:
+      - ./nginx/templates/default.lite.conf.template:/etc/nginx/templates/default.conf.template:ro
+    environment:
+      NGINX_HOST: localhost

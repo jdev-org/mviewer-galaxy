@@ -147,6 +147,8 @@ Si la stack Keycloak a déjà tourné et que vous voulez rejouer l'import du rea
 
 - mviewerstudio : `http://localhost/mviewerstudio/`
 - mviewer : `http://localhost/mviewer/`
+- GeoServer : `http://localhost/geoserver/`
+- GeoServer admin local : `http://localhost/geoserver-local/`
 - Keycloak : `http://localhost/keycloak/` avec la variante Keycloak uniquement
 
 L'accès racine `http://localhost/` redirige vers `mviewerstudio`.
@@ -162,6 +164,7 @@ Le flux d'authentification est le suivant :
 3. Keycloak authentifie l'utilisateur et retourne vers `/oauth2/callback`
 4. `oauth2-proxy` pose sa session, renvoie les en-têtes utilisateur et transmet aussi l'access token
 5. nginx propage ces en-têtes vers `mviewerstudio` et `mviewer`
+6. `GeoServer` reste accessible derrière nginx sur `/geoserver/`, sans passer par `oauth2-proxy`, afin de laisser `GeoServer` gérer lui-même son authentification
 
 Les schémas de login/logout sont documentés dans `../schemas/`.
 
@@ -325,11 +328,50 @@ Claims transmis par `oauth2-proxy` via nginx :
 - `X-Auth-Request-Groups`
 - `X-Auth-Request-Access-Token`
 
+Pour `GeoServer`, le reverse proxy transmet aussi :
+
+- `Authorization: Bearer <access_token>`
+- `X-Forwarded-Access-Token`
+
 Comportement de repli :
 
 - si `preferred_username`, `given_name` ou `family_name` ne sont pas présents dans les en-têtes, `mviewerstudio` les relit dans le token d'accès
 - si `roles` n'est pas présent, l'application tente `realm_access.roles`
 - si `organization` n'est pas présent comme claim dédié, elle peut être déduite du groupe transmis dans `X-Auth-Request-Groups`
+
+### Cas GeoServer
+
+Si `oauth2-proxy` protège déjà `/geoserver/`, évitez de laisser `GeoServer` démarrer un second login web OIDC autonome, sinon l'utilisateur repasse par une redirection vers Keycloak.
+
+Deux approches cohérentes existent :
+
+- soit `GeoServer` fait confiance au reverse proxy et consomme les en-têtes `X-Auth-Request-*` ou le bearer token transmis par nginx ;
+- soit `GeoServer` gère lui-même tout le flux OIDC, mais dans ce cas il ne faut pas attendre un SSO transparent uniquement via `oauth2-proxy`.
+
+En pratique, pour éviter la double saisie, la première approche est celle à viser derrière cette stack.
+
+Mode cible recommandé pour cette stack :
+
+- `oauth2-proxy` gère seul le login navigateur ;
+- nginx protège `/geoserver/` via `auth_request /oauth2/auth` ;
+- nginx transmet à `GeoServer` un `Authorization: Bearer <access_token>` ainsi que des en-têtes utilisateur compacts ;
+- `GeoServer` valide ce bearer token en mode resource server et ne doit pas déclencher son propre login OIDC web.
+
+Checklist GeoServer pour ce mode :
+
+1. installer l'extension communautaire `sec-oidc` correspondant exactement à la version GeoServer ;
+2. si vous utilisez l'image Docker officielle, déclarer `sec-oidc` dans `COMMUNITY_EXTENSIONS` et non dans `STABLE_EXTENSIONS` ;
+3. définir `PROXY_BASE_URL` sur l'URL publique de GeoServer, par exemple `http://localhost/geoserver` en local ;
+4. dans `Security -> Authentication -> Filters`, conserver le filtre OIDC uniquement pour l'acceptation des bearer tokens ;
+5. laisser activé `Enable Resource Server (Bearer JWT)` ;
+6. ne pas ajouter ce filtre à la chaîne `web` si vous voulez éviter un second login interactif ;
+7. réserver l'usage du filtre OIDC aux requêtes portant déjà un bearer token transmis par nginx.
+
+Si vous avez déjà suivi le tutoriel GeoServer OIDC pour un login web Keycloak :
+
+- retirez le filtre OIDC de la chaîne `web` ;
+- gardez l'extension pour la validation du JWT ;
+- laissez nginx et `oauth2-proxy` être le seul point d'entrée interactif.
 
 ## Configuration OIDC locale
 
@@ -339,7 +381,7 @@ Valeurs par défaut de `.env.docker` :
 - `OAUTH2_PROXY_CLIENT_SECRET=mviewerstudio-local-secret`
 - `OAUTH2_PROXY_COOKIE_SECRET=0123456789abcdef0123456789abcdef`
 - `OAUTH2_PROXY_ALLOWED_ROLE=MVIEWER_ACCESS`
-- `OAUTH2_PROXY_SCOPE=openid email profile organization`
+- `OAUTH2_PROXY_SCOPE=openid email profile organization roles`
 - `OAUTH2_PROXY_OIDC_GROUPS_CLAIM=organization`
 - `KEYCLOAK_HOSTNAME=http://localhost/keycloak`
 - `OAUTH2_PROXY_OIDC_ISSUER_URL=http://localhost/keycloak/realms/mviewer`

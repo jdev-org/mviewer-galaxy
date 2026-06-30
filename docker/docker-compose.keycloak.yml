@@ -7,6 +7,7 @@ services:
       - mviewerstudio
       - keycloak
       - oauth2-proxy
+      - geoserver
     links:
       - mviewer
       - mviewerstudio
@@ -17,7 +18,7 @@ services:
       - ../resources/mviewer/apps:/usr/share/nginx/html/apps:ro
 
   mviewerstudio:
-    image: mviewer/mviewerstudio:keycloak
+    image: mviewer/mviewerstudio:galaxy
     environment:
       MVIEWERSTUDIO_AUTH_TYPE: keycloak
 
@@ -75,12 +76,12 @@ services:
       - --skip-oidc-discovery=true
       - --oidc-issuer-url=${OAUTH2_PROXY_OIDC_ISSUER_URL:-http://localhost/keycloak/realms/mviewer}
       - --login-url=${OAUTH2_PROXY_LOGIN_URL:-http://localhost/keycloak/realms/mviewer/protocol/openid-connect/auth}
-      - --redeem-url=http://keycloak:8080/keycloak/realms/mviewer/protocol/openid-connect/token
-      - --oidc-jwks-url=http://keycloak:8080/keycloak/realms/mviewer/protocol/openid-connect/certs
+      - --redeem-url=${OAUTH2_PROXY_REDEEM_URL:-http://keycloak:8080/keycloak/realms/mviewer/protocol/openid-connect/token}
+      - --oidc-jwks-url=${OAUTH2_PROXY_OIDC_JWKS_URL:-http://keycloak:8080/keycloak/realms/mviewer/protocol/openid-connect/certs}
       - --redirect-url=${OAUTH2_PROXY_REDIRECT_URL:-http://localhost/oauth2/callback}
       - --client-id=${OAUTH2_PROXY_CLIENT_ID:-mviewerstudio}
       - --client-secret=${OAUTH2_PROXY_CLIENT_SECRET:-mviewerstudio-local-secret}
-      - --scope=openid email profile organization
+      - --scope=${OAUTH2_PROXY_SCOPE:-openid email profile organization roles}
       - --email-domain=*
       - --allowed-role=${OAUTH2_PROXY_ALLOWED_ROLE:-MVIEWER_ACCESS}
       - --oidc-groups-claim=organization
@@ -96,6 +97,9 @@ services:
       - --auth-logging=true
       - --request-logging=true
       - --show-debug-on-error=true
+      - --http-address=0.0.0.0:4180
+      - --validate-url=http://mviewer-keycloak-proxy-1/keycloak/realms/mviewer/protocol/openid-connect/userinfo
+      - --whitelist-domain=localhost
 
 volumes:
   postgres_data:

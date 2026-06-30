@@ -28,6 +28,14 @@ server {
         alias /usr/share/nginx/html/apps/;
     }
 
+    location = /geoserver {
+        return 302 /geoserver/;
+    }
+
+    location /geoserver/ {
+        proxy_pass http://geoserver:8080/geoserver/;
+    }
+
     location = /${MVIEWERSTUDIO_URL_PATH_PREFIX} {
         return 302 /${MVIEWERSTUDIO_URL_PATH_PREFIX}/$is_args$args;
     }
