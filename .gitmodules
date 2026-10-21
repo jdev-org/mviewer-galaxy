@@ -1,6 +1,8 @@
 [submodule "mviewer"]
 	path = mviewer
 	url = https://github.com/jdev-org/mviewer.git
+	branch = master
 [submodule "mviewerstudio"]
 	path = mviewerstudio
 	url = https://github.com/jdev-org/mviewerstudio.git
+	branch = oauth2-proxy-keycloak

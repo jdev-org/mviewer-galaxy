@@ -1,0 +1,55 @@
+server {
+    listen 80;
+    server_name ${NGINX_HOST};
+
+    client_max_body_size 20m;
+
+    location = /mviewer {
+        return 302 /mviewer/$is_args$args;
+    }
+
+    location /mviewer/ {
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $http_x_forwarded_proto;
+        proxy_pass http://mviewer:8080/;
+    }
+
+    location /apps/ {
+        alias /usr/share/nginx/html/apps/;
+    }
+
+    location = /${MVIEWERSTUDIO_URL_PATH_PREFIX} {
+        return 302 /${MVIEWERSTUDIO_URL_PATH_PREFIX}/$is_args$args;
+    }
+
+    location /${MVIEWERSTUDIO_URL_PATH_PREFIX}/ {
+        proxy_set_header Host $http_host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $http_x_forwarded_proto;
+        proxy_set_header X-Forwarded-Host $http_host;
+        proxy_pass http://mviewerstudio:8000/${MVIEWERSTUDIO_URL_PATH_PREFIX}/;
+    }
+
+    location = /keycloak {
+        return 302 /keycloak/;
+    }
+
+    location /keycloak/ {
+        proxy_set_header Host $http_host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $http_x_forwarded_proto;
+        proxy_set_header X-Forwarded-Host $http_host;
+        # Resolve only when requested so nginx can start without the keycloak profile.
+        resolver 127.0.0.11 valid=10s ipv6=off;
+        set $keycloak_upstream keycloak:8080;
+        proxy_pass http://$keycloak_upstream;
+    }
+
+    location / {
+        return 302 /${MVIEWERSTUDIO_URL_PATH_PREFIX}/;
+    }
+}
