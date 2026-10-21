@@ -54,4 +54,4 @@ Modifier les valeurs de Studio puis relancer la commande de démarrage du mode d
 
 Le navigateur doit joindre la page de connexion. Studio doit joindre les endpoints de découverte, de jetons et de clés publiques annoncés par le realm. Les certificats HTTPS doivent être reconnus par l'environnement du conteneur.
 
-Voir le guide [Reverse proxy et HTTPS](/guides/https/).
+Voir le guide [Reverse proxy et HTTPS](/mviewer-galaxy/guides/https/).

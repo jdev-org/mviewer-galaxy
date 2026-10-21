@@ -13,8 +13,8 @@ npm ci
 npm run dev
 ```
 
-Ouvrir `http://localhost:4321` pour accéder à la page d’accueil. Le bouton
-**Getting started** mène au guide `/guides/demarrage/` et à la navigation de
+Ouvrir `http://localhost:4321/mviewer-galaxy/` pour accéder à la page d’accueil. Le bouton
+**Démarrer** mène au guide `/mviewer-galaxy/guides/demarrage/` et à la navigation de
 la documentation. Le site dispose d'une navigation par rubriques,
 d'un thème clair/sombre et d'une recherche indexée lors du build.
 
@@ -29,8 +29,14 @@ npm run preview
 
 Les fichiers statiques sont générés dans `docs/dist/` et peuvent être servis
 par un hébergement statique. Le dossier `/docs` est le dossier source du projet ;
-le site utilise la racine URL `/`. Pour l'héberger sous un préfixe, configurer
-`base` dans `astro.config.mjs` et adapter les liens internes.
+le site utilise le préfixe `/mviewer-galaxy/`, défini par `base` dans
+`astro.config.mjs`. Les liens internes écrits dans le contenu doivent conserver
+ce préfixe, comme `/mviewer-galaxy/guides/demarrage/`.
+
+Le workflow `.github/workflows/docs.yml` publie le site sur
+`https://jdev-org.github.io/mviewer-galaxy/` après un push sur `main` modifiant
+la documentation, ou après un déclenchement manuel. Dans les paramètres du dépôt,
+sélectionner **Pages → Source → GitHub Actions**.
 
 ## Modifier les pages
 

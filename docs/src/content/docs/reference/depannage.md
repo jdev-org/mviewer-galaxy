@@ -31,7 +31,7 @@ Adapter ces adresses au domaine public pour un déploiement distant. Nginx adapt
 
 Vérifier que Studio est démarré. Une erreur de permission sur `apps/store/register.json` empêche son démarrage. Aligner l'UID/GID du processus sur le propriétaire des dossiers partagés, puis recréer le service.
 
-Voir [Volumes et exploitation](/guides/exploitation/).
+Voir [Volumes et exploitation](/mviewer-galaxy/guides/exploitation/).
 
 ## Erreur 500 après une connexion réussie
 
@@ -45,4 +45,4 @@ Vérifier les autorisations de l'utilisateur et leur correspondance avec `MVIEWE
 
 `env_file` alimente le conteneur ; `--env-file` alimente les expressions du Compose. Pour utiliser `PROXY_HTTP_PORT` depuis `.envs-proxy`, charger aussi ce fichier dans la commande.
 
-Voir [Variables et fichiers env](/reference/environnement/).
+Voir [Variables et fichiers env](/mviewer-galaxy/reference/environnement/).
