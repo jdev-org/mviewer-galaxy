@@ -1,0 +1,6 @@
+[submodule "mviewer"]
+	path = mviewer
+	url = https://github.com/jdev-org/mviewer.git
+[submodule "mviewerstudio"]
+	path = mviewerstudio
+	url = https://github.com/jdev-org/mviewerstudio.git

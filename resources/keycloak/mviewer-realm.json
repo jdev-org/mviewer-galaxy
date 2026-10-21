@@ -406,7 +406,9 @@
       "serviceAccountsEnabled": false,
       "redirectUris": [
         "http://localhost/oauth2/callback",
-        "http://localhost:*/oauth2/callback"
+        "http://localhost:*/oauth2/callback",
+        "http://localhost/mviewerstudio/auth/callback",
+        "http://localhost:*/mviewerstudio/auth/callback"
       ],
       "webOrigins": [
         "http://localhost",

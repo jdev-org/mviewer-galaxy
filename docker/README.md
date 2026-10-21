@@ -1,227 +1,186 @@
-# Stack Docker mviewer + mviewerstudio
+# Docker : Mviewer et Mviewer Studio
 
-Ce dossier contient plusieurs compositions Docker pour lancer `mviewer`, `mviewerstudio` et, selon le cas, la chaîne OIDC complète avec `Keycloak` et `oauth2-proxy`.
+La composition `docker-compose.yml` démarre nginx (`proxy`), Mviewer et
+Mviewer Studio. Studio gère directement l'authentification OIDC avec Authlib.
+Le profil `keycloak` ajoute un serveur Keycloak local de test.
 
-Le scénario recommandé en production est d'utiliser un nginx déjà déployé sur le serveur comme reverse proxy TLS en frontal, et d'exposer le service `proxy` de cette stack uniquement en local.
+Toutes les commandes de ce guide s'exécutent depuis la racine du dépôt.
+Les variables sont chargées depuis `docker/.env.docker` avec `--env-file`.
 
-## Proxy et Reverse Proxy
+## Fichiers utilisés
 
-- `proxy` : c'est le conteneur nginx inclus dans cette stack Docker. Il route les requêtes vers `mviewer`, `mviewerstudio` et, selon la variante, vers `oauth2-proxy`.
-- `reverse proxy` : c'est le nginx déjà déployé sur le serveur, placé devant la stack. Il reçoit le trafic public, termine TLS en `https://`, puis relaie vers le service `proxy` en HTTP local.
+- `docker/docker-compose.yml` : services, profil et volumes.
+- `docker/.env.docker` : variables de configuration.
+- `docker/nginx/templates/authlib-keycloak-optional.conf.template` : routage HTTP commun aux deux modes.
+- `resources/keycloak/mviewer-realm.json` : realm importé par le service Keycloak local.
+- `resources/mviewer/` : dossiers partagés avec les services applicatifs.
 
-Schéma recommandé :
+L'image Studio est construite à partir de `mviewerstudio/docker/Dockerfile`.
+Sa configuration frontend est celle embarquée dans l'image.
 
-```text
-Internet
-  -> HTTPS
-reverse proxy nginx existant
-  -> HTTP
-service `proxy` de cette stack
-  -> mviewerstudio / mviewer / oauth2-proxy
+## Configuration
+
+Ces trois variables doivent être renseignées et non vides dans les deux modes :
+
+| Variable | Usage |
+|---|---|
+| `MVIEWERSTUDIO_AUTHLIB_ISSUER` | URL du realm Keycloak |
+| `MVIEWERSTUDIO_AUTHLIB_CLIENT_SECRET` | Secret du client OIDC |
+| `MVIEWERSTUDIO_SECRET_KEY` | Clé de session Studio |
+
+Compose bloque le démarrage et indique la variable à renseigner si elle est
+absente ou vide. Vérifier la configuration avant de lancer les services :
+
+```bash
+docker compose --env-file docker/.env.docker -f docker/docker-compose.yml config --quiet
 ```
 
-## Contenu
+Cette commande vérifie la configuration Compose. L'accès à Keycloak et la
+validité des identifiants se vérifient pendant le parcours de connexion.
 
-- `docker-compose.yml` : composition de base avec `proxy`, `mviewer` et `mviewerstudio`.
-- `docker-compose.keycloak.yml` : surcouche qui ajoute `postgres`, `keycloak` et `oauth2-proxy`, et remplace le template nginx par la variante OIDC.
-- `docker-compose.keycloak-external.yml` : surcouche qui ajoute uniquement `oauth2-proxy` pour se connecter à un Keycloak existant.
-- `docker-compose.gateway.yml` : composition 3 services pour un usage derrière une gateway qui transmet déjà les en-têtes d'authentification.
-- `.env.docker` : variables locales de configuration.
-- `compose.sh` : wrapper pour `docker compose` avec chargement automatique de `.env.docker`.
-- `nginx/templates/default.conf.template` : routage HTTP pour la variante Keycloak.
-- `nginx/templates/default.keycloak-external.conf.template` : routage HTTP pour la variante avec Keycloak externe.
-- `nginx/templates/default.gateway.conf.template` : routage HTTP simple pour la variante gateway.
-- `mviewerstudio/templates/config.json.template` : template de `config.json` généré pour mviewerstudio au démarrage.
-- `mviewerstudio/render_config.py` : script de rendu du template `config.json`.
+### Keycloak externe
 
-## Compositions disponibles
-
-- Base : `proxy`, `mviewer`, `mviewerstudio`
-- Keycloak : base + `postgres`, `keycloak`, `oauth2-proxy`
-- Keycloak externe : base + `oauth2-proxy`
-- Gateway : `proxy`, `mviewer`, `mviewerstudio`
-
-## Lancer la stack
-
-### Cas recommandé en production : nginx déjà déployé
-
-Schéma cible :
-
-```text
-Internet
-  -> HTTPS
-nginx existant
-  -> HTTP
-service `proxy` de cette stack
-  -> mviewerstudio / mviewer / oauth2-proxy
-```
-
-Variables `.env.docker` recommandées :
+Renseigner les valeurs correspondant au serveur distant :
 
 ```env
-PROXY_HTTP_PORT=8080
-PROXY_HTTP_HOST_IP=127.0.0.1
-NGINX_HOST=maps.example.org
-OAUTH2_PROXY_COOKIE_SECURE=true
-OAUTH2_PROXY_REDIRECT_URL=https://maps.example.org/oauth2/callback
+MVIEWERSTUDIO_AUTHLIB_ISSUER=https://sso.example.org/realms/mviewer
+MVIEWERSTUDIO_AUTHLIB_METADATA_URL=https://sso.example.org/realms/mviewer/.well-known/openid-configuration
+MVIEWERSTUDIO_AUTHLIB_CLIENT_ID=mviewerstudio
+MVIEWERSTUDIO_AUTHLIB_CLIENT_SECRET=secret-du-client
+MVIEWERSTUDIO_SECRET_KEY=remplacer-par-un-secret-aleatoire-long
 ```
 
-Commande :
+Définir explicitement `MVIEWERSTUDIO_AUTHLIB_METADATA_URL` : une valeur absente
+ou vide utilise le défaut du Compose, qui cible le service local `keycloak:8080`.
+Les endpoints du serveur distant doivent être accessibles depuis le navigateur
+pour la connexion, et depuis Studio pour les échanges OIDC.
+
+Le client Keycloak doit autoriser le callback
+`https://votre-domaine/mviewerstudio/auth/callback`, ou
+`http://localhost/mviewerstudio/auth/callback` pour un test local.
+Les claims doivent correspondre au contrôle d'accès configuré par
+`MVIEWERSTUDIO_AUTHLIB_ALLOWED_GROUPS` (par défaut `MVIEWER_ACCESS`).
+
+Démarrer :
 
 ```bash
-./compose.sh -f docker-compose.yml -f docker-compose.keycloak-external.yml up --build
+docker compose --env-file docker/.env.docker -f docker/docker-compose.yml up -d --build
 ```
 
-Le nginx déjà déployé doit relayer vers `http://127.0.0.1:8080` et transmettre au minimum :
+### Keycloak local
 
-- `Host`
-- `X-Forwarded-For`
-- `X-Forwarded-Proto https`
-
-## Pour une mise en production
-
-La voie recommandée est :
-
-1. déployer un nginx déjà existant ou géré au niveau du serveur
-2. faire terminer TLS sur ce nginx
-3. exposer le service `proxy` de cette stack seulement en local
-4. lancer la variante `keycloak-external` si le serveur Keycloak est déjà existant
-
-Configuration `.env.docker` minimale :
+Configurer les valeurs du realm de test :
 
 ```env
-PROXY_HTTP_PORT=8080
-PROXY_HTTP_HOST_IP=127.0.0.1
-NGINX_HOST=maps.example.org
-OAUTH2_PROXY_COOKIE_SECURE=true
-OAUTH2_PROXY_COOKIE_SAMESITE=lax
-OAUTH2_PROXY_REDIRECT_URL=https://maps.example.org/oauth2/callback
+MVIEWERSTUDIO_AUTHLIB_ISSUER=http://localhost/keycloak/realms/mviewer
+MVIEWERSTUDIO_AUTHLIB_METADATA_URL=http://keycloak:8080/keycloak/realms/mviewer/.well-known/openid-configuration
+MVIEWERSTUDIO_AUTHLIB_CLIENT_ID=mviewerstudio
+MVIEWERSTUDIO_AUTHLIB_CLIENT_SECRET=mviewerstudio-local-secret
+MVIEWERSTUDIO_SECRET_KEY=remplacer-par-un-secret-aleatoire-long
+KEYCLOAK_HOSTNAME=http://localhost/keycloak
 ```
 
-Commande recommandée :
+Démarrer avec le profil :
 
 ```bash
-./compose.sh -f docker-compose.yml -f docker-compose.keycloak-external.yml up --build
+docker compose --env-file docker/.env.docker -f docker/docker-compose.yml --profile keycloak up -d --build
 ```
 
-Points d'attention :
+Le profil sélectionne les services ; les valeurs Authlib restent celles définies
+dans le fichier d'environnement. Le realm importé est `mviewer`.
 
-- ne pas exposer directement `PROXY_HTTP_PORT` sur Internet
-- configurer le reverse proxy nginx serveur pour relayer vers `http://127.0.0.1:8080`
-- transmettre `Host`, `X-Forwarded-For` et `X-Forwarded-Proto https`
-- utiliser des secrets réels pour `OAUTH2_PROXY_CLIENT_SECRET` et `OAUTH2_PROXY_COOKIE_SECRET`
-- utiliser une URL publique cohérente entre nginx, `OAUTH2_PROXY_REDIRECT_URL` et le client OIDC côté Keycloak
+| Usage | Utilisateur | Mot de passe local |
+|---|---|---|
+| Studio | `john.doe` | `john` |
+| Test | `test` | `test` |
+| Administration | `admin` | `admin` |
 
-Depuis ce dossier, avec la composition de base :
+Le compte administrateur peut être configuré avec `KEYCLOAK_ADMIN` et
+`KEYCLOAK_ADMIN_PASSWORD`.
+Le serveur fonctionne en mode développement ; ses données résident dans le
+conteneur. Sa recréation réimporte le realm et réinitialise les modifications
+faites dans la console.
+
+## URLs
+
+- Studio : `http://localhost/mviewerstudio/`.
+- Mviewer : `http://localhost/mviewer/`.
+- Administration Keycloak locale : `http://localhost/keycloak/admin/`.
+
+La racine `/` redirige vers Studio. Le callback OIDC est
+`/mviewerstudio/auth/callback`. Adapter les adresses publiques si le port ou le
+nom d'hôte change, ainsi que les URL autorisées dans le client Keycloak.
+
+## Variables complémentaires
+
+| Variable | Valeur par défaut | Usage |
+|---|---|---|
+| `PROXY_HTTP_PORT` | `80` | Port HTTP publié sur l'hôte |
+| `NGINX_HOST` | `localhost` | Nom de serveur nginx |
+| `MVIEWERSTUDIO_UID` / `MVIEWERSTUDIO_GID` | `1000` / `1000` | Identité du processus Studio |
+| `MVIEWERSTUDIO_DEFAULT_ORG` | `jdev` | Organisation par défaut |
+| `MVIEWERSTUDIO_AUTHLIB_CLIENT_ID` | `mviewerstudio` | Client OIDC |
+| `MVIEWERSTUDIO_AUTHLIB_SCOPE` | `openid profile email organization` | Scopes demandés |
+| `MVIEWERSTUDIO_AUTHLIB_ALLOWED_GROUPS` | `MVIEWER_ACCESS` | Contrôle d'accès Studio |
+| `KEYCLOAK_HOSTNAME` | `http://localhost/keycloak` | URL publique du Keycloak local |
+
+## Volumes et permissions
+
+| Dossier de l'hôte | Chemin dans Studio | Chemin dans nginx et Mviewer |
+|---|---|---|
+| `resources/mviewer/apps` | `/home/mvuser/apps` | `/usr/share/nginx/html/apps` |
+| `resources/mviewer/store` | `/home/mvuser/store` | `/usr/share/nginx/html/store` |
+| `resources/mviewer/public` | `/home/mvuser/public` | `/usr/share/nginx/html/public` |
+
+Studio dispose d'un accès en lecture-écriture ; nginx et Mviewer disposent d'un
+accès en lecture seule. Studio enregistre actuellement ses configurations dans
+`apps/store` et publie dans `apps/public`, à l'intérieur du premier montage.
+
+Adapter `MVIEWERSTUDIO_UID` et `MVIEWERSTUDIO_GID` au propriétaire des dossiers
+partagés si nécessaire. Une erreur de permission sur `apps/store/register.json`
+empêche le démarrage de Studio et provoque un 502 dans nginx.
+
+## Exploitation
+
+Afficher l'état et les derniers journaux :
 
 ```bash
-./compose.sh up --build
+docker compose --env-file docker/.env.docker -f docker/docker-compose.yml --profile keycloak ps -a
+docker compose --env-file docker/.env.docker -f docker/docker-compose.yml --profile keycloak logs --tail 100 proxy mviewerstudio keycloak
 ```
 
-Pour la variante Keycloak :
+Après une modification des volumes ou des variables, relancer la commande
+`up -d` du mode choisi pour recréer les services concernés. Ajouter `--build`
+pour reconstruire l'image après une modification de Studio.
+
+Arrêter et supprimer les conteneurs et le réseau de la composition :
 
 ```bash
-./compose.sh -f docker-compose.yml -f docker-compose.keycloak.yml up --build
+docker compose --env-file docker/.env.docker -f docker/docker-compose.yml --profile keycloak down
 ```
 
-Pour la variante connectée à un Keycloak déjà existant :
+Les dossiers partagés de l'hôte sont conservés. Le Keycloak local est réinitialisé
+à la prochaine création de son conteneur.
+
+Pour passer du Keycloak local à un serveur externe, arrêter d'abord le service :
 
 ```bash
-./compose.sh -f docker-compose.yml -f docker-compose.keycloak-external.yml up --build
+docker compose --env-file docker/.env.docker -f docker/docker-compose.yml --profile keycloak stop keycloak
 ```
 
-Pour la variante gateway :
+Configurer ensuite les valeurs externes et relancer la commande de démarrage
+correspondante. Un changement de profil ne suffit pas à arrêter un service déjà actif.
 
-```bash
-./compose.sh -f docker-compose.gateway.yml up --build
-```
+## Reverse proxy HTTPS
 
-Si la stack Keycloak a déjà tourné et que vous voulez rejouer l'import du realm :
+Un nginx existant peut terminer TLS et relayer vers le port HTTP du service
+`proxy`. Transmettre `Host`, `X-Forwarded-For` et `X-Forwarded-Proto: https` pour
+que Studio construise son URL de retour publique. Aligner le callback autorisé
+côté Keycloak.
 
-```bash
-./compose.sh -f docker-compose.yml -f docker-compose.keycloak.yml down -v
-./compose.sh -f docker-compose.yml -f docker-compose.keycloak.yml up --build
-```
-
-## URLs par défaut
-
-- mviewerstudio : `http://localhost/mviewerstudio/`
-- mviewer : `http://localhost/mviewer/`
-- Keycloak : `http://localhost/keycloak/` avec la variante Keycloak uniquement
-
-L'accès racine `http://localhost/` redirige vers `mviewerstudio`.
-
-## Authentification
-
-### Variante Keycloak
-
-Le flux d'authentification est le suivant :
-
-1. nginx protège `/mviewerstudio/` et `/mviewer/` via `auth_request /oauth2/auth`
-2. `oauth2-proxy` redirige l'utilisateur vers Keycloak
-3. Keycloak authentifie l'utilisateur et retourne vers `/oauth2/callback`
-4. `oauth2-proxy` pose sa session, renvoie les en-têtes utilisateur et transmet aussi l'access token
-5. nginx propage ces en-têtes vers `mviewerstudio` et `mviewer`
-
-Les schémas de login/logout sont documentés dans `../schemas/`.
-
-### Variante gateway
-
-La composition gateway n'embarque ni `Keycloak` ni `oauth2-proxy`.
-Elle attend qu'une gateway externe gère l'authentification et transmette les en-têtes `sec-*` à nginx, qui les propage ensuite vers `mviewerstudio`.
-
-## Connecter un Keycloak déjà existant
-
-La variante `docker-compose.keycloak-external.yml` permet de conserver `mviewer`, `mviewerstudio`, nginx et `oauth2-proxy` en local, tout en pointant vers un serveur Keycloak déjà déployé.
-
-Commande :
-
-```bash
-./compose.sh -f docker-compose.yml -f docker-compose.keycloak-external.yml up --build
-```
-
-Variables à renseigner dans `.env.docker` :
-
-- `OAUTH2_PROXY_CLIENT_ID`
-- `OAUTH2_PROXY_CLIENT_SECRET`
-- `OAUTH2_PROXY_COOKIE_SECRET`
-- `OAUTH2_PROXY_OIDC_ISSUER_URL`
-- `OAUTH2_PROXY_LOGIN_URL`
-- `OAUTH2_PROXY_REDEEM_URL`
-- `OAUTH2_PROXY_OIDC_JWKS_URL`
-- `OAUTH2_PROXY_REDIRECT_URL`
-
-Variables recommandées pour la production :
-
-- `OAUTH2_PROXY_COOKIE_SECURE=true`
-- `OAUTH2_PROXY_COOKIE_SAMESITE=lax`
-
-Exemple :
-
-```env
-OAUTH2_PROXY_CLIENT_ID=mviewerstudio
-OAUTH2_PROXY_CLIENT_SECRET=change-me
-OAUTH2_PROXY_COOKIE_SECRET=0123456789abcdef0123456789abcdef
-OAUTH2_PROXY_OIDC_ISSUER_URL=https://sso.example.org/realms/mviewer
-OAUTH2_PROXY_LOGIN_URL=https://sso.example.org/realms/mviewer/protocol/openid-connect/auth
-OAUTH2_PROXY_REDEEM_URL=https://sso.example.org/realms/mviewer/protocol/openid-connect/token
-OAUTH2_PROXY_OIDC_JWKS_URL=https://sso.example.org/realms/mviewer/protocol/openid-connect/certs
-OAUTH2_PROXY_REDIRECT_URL=https://maps.example.org/oauth2/callback
-OAUTH2_PROXY_ALLOWED_ROLE=MVIEWER_ACCESS
-```
-
-Le client OIDC déclaré dans le Keycloak distant doit autoriser :
-
-- l'URL de redirection `.../oauth2/callback`
-- les origines/web origins correspondant à l'URL publique de la stack
-- les scopes et claims nécessaires à `oauth2-proxy` et `mviewerstudio`
-
-Pré-requis de mise en production :
-
-- exposer la stack derrière HTTPS
-- utiliser une `OAUTH2_PROXY_REDIRECT_URL` en `https://`
-- ne pas utiliser le template nginx de la variante Keycloak locale, qui contient une route `/keycloak/` vers un service Docker local
-- si vous utilisez déjà un nginx sur le serveur, faites-le pointer vers `http://127.0.0.1:8080` et n'exposez pas directement le port HTTP de la stack sur Internet
+Le port publié se règle avec `PROXY_HTTP_PORT` ; le Compose le publie sur les
+interfaces de l'hôte. Le template nginx résout le nom du Keycloak local à la
+réception des requêtes, ce qui permet de démarrer dans les deux modes.
 
 ## Certificats TLS
 
@@ -273,7 +232,7 @@ Après renouvellement, rechargez le nginx déjà déployé pour qu'il relise les
 
 ## Cookies et RGPD
 
-Cette stack peut déposer au moins des cookies techniques de session liés à l'authentification OIDC, notamment via `oauth2-proxy` et, selon le parcours de déconnexion, des cookies de session Keycloak.
+Cette stack peut déposer au moins des cookies techniques de session liés à l'authentification OIDC, via la session Authlib de Studio et les cookies de session Keycloak.
 
 En pratique, pour cette architecture :
 
@@ -299,93 +258,3 @@ Point de prudence :
 
 - cette section donne un cadrage technique et documentaire, pas un avis juridique ;
 - si le site est destiné à des usagers externes ou à une collectivité, faites valider la politique cookies et la base légale retenue par votre DPO ou conseil juridique.
-
-Scopes attendus :
-
-- `openid` : obligatoire pour le flux OIDC
-- `email` : utilisé par `oauth2-proxy`
-- `profile` : permet d'exposer `preferred_username`, `given_name`, `family_name`
-- `organization` : utilisé ici pour exposer l'organisation de l'utilisateur
-- `roles` : recommandé si vous voulez récupérer les rôles directement dans le token, en plus du contrôle d'accès fait par `oauth2-proxy`
-
-Claims attendus côté application :
-
-- `preferred_username` : identifiant utilisateur affiché/utilisé par `mviewerstudio`
-- `given_name` : prénom
-- `family_name` : nom
-- `organization` : organisation de rattachement
-- `roles` ou `realm_access.roles` : rôles applicatifs
-
-Claims transmis par `oauth2-proxy` via nginx :
-
-- `X-Auth-Request-User`
-- `X-Auth-Request-Preferred-Username`
-- `X-Auth-Request-Given-Name`
-- `X-Auth-Request-Family-Name`
-- `X-Auth-Request-Groups`
-- `X-Auth-Request-Access-Token`
-
-Comportement de repli :
-
-- si `preferred_username`, `given_name` ou `family_name` ne sont pas présents dans les en-têtes, `mviewerstudio` les relit dans le token d'accès
-- si `roles` n'est pas présent, l'application tente `realm_access.roles`
-- si `organization` n'est pas présent comme claim dédié, elle peut être déduite du groupe transmis dans `X-Auth-Request-Groups`
-
-## Configuration OIDC locale
-
-Valeurs par défaut de `.env.docker` :
-
-- `OAUTH2_PROXY_CLIENT_ID=mviewerstudio`
-- `OAUTH2_PROXY_CLIENT_SECRET=mviewerstudio-local-secret`
-- `OAUTH2_PROXY_COOKIE_SECRET=0123456789abcdef0123456789abcdef`
-- `OAUTH2_PROXY_ALLOWED_ROLE=MVIEWER_ACCESS`
-- `OAUTH2_PROXY_SCOPE=openid email profile organization`
-- `OAUTH2_PROXY_OIDC_GROUPS_CLAIM=organization`
-- `KEYCLOAK_HOSTNAME=http://localhost/keycloak`
-- `OAUTH2_PROXY_OIDC_ISSUER_URL=http://localhost/keycloak/realms/mviewer`
-- `OAUTH2_PROXY_LOGIN_URL=http://localhost/keycloak/realms/mviewer/protocol/openid-connect/auth`
-- `OAUTH2_PROXY_REDEEM_URL=http://keycloak:8080/keycloak/realms/mviewer/protocol/openid-connect/token`
-- `OAUTH2_PROXY_OIDC_JWKS_URL=http://keycloak:8080/keycloak/realms/mviewer/protocol/openid-connect/certs`
-- `OAUTH2_PROXY_REDIRECT_URL=http://localhost/oauth2/callback`
-
-Le realm importé par défaut est `mviewer`.
-
-Identifiants Keycloak par défaut :
-
-- administration : `admin` / `admin`
-- utilisateur de test : `john.doe` / `john`
-
-Le realm importe également le rôle `MVIEWER_ACCESS`, déjà attribué aux utilisateurs de test prévus pour l'accès à `mviewerstudio`.
-
-## Variables utiles
-
-- `PROXY_HTTP_PORT` : port HTTP exposé localement par nginx.
-- `NGINX_HOST` : nom d'hôte public utilisé par nginx.
-- `MVIEWERSTUDIO_URL_PATH_PREFIX` : préfixe d'URL de `mviewerstudio`.
-- `MVIEWERSTUDIO_DEFAULT_ORG` : organisation par défaut si aucune organisation n'est transmise.
-- `MVIEWERSTUDIO_AUTH_ALLOWED_ROLES` : rôles applicatifs acceptés par `mviewerstudio`.
-- `MVIEWER_STORE_PATH` : dossier des configurations de travail dans `apps/`.
-- `MVIEWER_PUBLIC_PATH` : dossier des configurations publiées dans `apps/`.
-
-Si vous changez l'hôte, le port, ou les URLs publiques, pensez à aligner :
-
-- `KEYCLOAK_HOSTNAME`
-- `OAUTH2_PROXY_OIDC_ISSUER_URL`
-- `OAUTH2_PROXY_LOGIN_URL`
-- `OAUTH2_PROXY_REDEEM_URL`
-- `OAUTH2_PROXY_OIDC_JWKS_URL`
-- `OAUTH2_PROXY_REDIRECT_URL`
-
-et la configuration du client `mviewerstudio` dans le realm Keycloak.
-
-## Volumes et fichiers générés
-
-- `../resources/mviewer/apps` est partagé entre `mviewer`, `mviewerstudio` et nginx.
-- `mviewerstudio` génère son `config.json` à partir de `mviewerstudio/templates/config.json.template`.
-- Le volume Docker `postgres_data` persiste les données Keycloak dans la variante OIDC.
-
-## Notes
-
-- Les secrets de `.env.docker` sont adaptés à un usage local uniquement.
-- Remplacez `OAUTH2_PROXY_CLIENT_SECRET`, `OAUTH2_PROXY_COOKIE_SECRET` et les mots de passe PostgreSQL/Keycloak avant tout environnement partage.
-- Les fichiers `docker-compose.yml` et `docker-compose.gateway.yml` construisent l'image `mviewerstudio` depuis le depot courant, avec le `Dockerfile` du projet principal.

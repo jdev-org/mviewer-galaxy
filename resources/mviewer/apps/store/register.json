@@ -1,4 +1,1 @@
-{
-    "total": 0,
-    "configs": []
-}
+{"total": 1, "configs": [{"id": "a3f5e5d696a5", "title": "test", "creator": "admin", "versions": {"tags": [{"name": "2026-10-21-14-46-53", "message": "Creation", "commit": "27e32146e28eba43985de3b7b7a5f90f19c92097"}], "commits": [{"message": "Creation\n", "id": "27e32146e28eba43985de3b7b7a5f90f19c92097", "author": "admin", "date": "2026-10-21-14-46-53", "current": true, "publication": "false", "tag": "2026-10-21-14-46-53"}]}, "description": "21-10-2026-16-46-48", "publisher": "public", "keywords": null, "url": "public/a3f5e5d696a5/a3f5e5d696a5.xml", "subject": "", "date": "2026-10-21T14:46:48.919Z", "relation": "", "directory": "a3f5e5d696a5"}]}

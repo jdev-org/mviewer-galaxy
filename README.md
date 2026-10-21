@@ -1,65 +1,42 @@
 # mviewer-galaxy
 
-`mviewer-galaxy` regroupe un environnement d'intégration autour de `mviewer` et `mviewerstudio`, avec plusieurs variantes d'authentification et une base de déploiement Docker.
+Environnement d'intégration de Mviewer et Mviewer Studio, avec authentification
+OIDC gérée par Authlib et Keycloak.
 
-L'objectif est de fournir un espace autonome pour :
+## Organisation
 
-- lancer `mviewer` et `mviewerstudio` ensemble ;
-- tester une authentification OIDC avec Keycloak ;
-- raccorder la stack à un Keycloak déjà existant ;
-- documenter les flux de connexion et de déconnexion ;
-- préparer un déploiement derrière un nginx déjà présent sur le serveur.
-
-## Ce que contient le projet
-
-- [docker](./docker/README.md) : compositions Docker, templates nginx, variables d'environnement et guide de lancement.
-- `resources/keycloak/mviewer-realm.json` : realm Keycloak d'exemple pour les tests locaux.
-- `resources/mviewerstudio/config.json` : configuration générée pour `mviewerstudio`.
-- `schemas/` : schémas d'architecture et de flux autour d'`oauth2-proxy`, du login et du logout.
-
-## Variantes disponibles
-
-Le dossier `docker/` fournit plusieurs modes de fonctionnement :
-
-- base : `proxy`, `mviewer`, `mviewerstudio`
-- Keycloak local : ajoute `postgres`, `keycloak`, `oauth2-proxy`
-- Keycloak externe : conserve la stack applicative et pointe vers un serveur Keycloak existant
-- gateway : variante simplifiée pour un environnement où l'authentification est déjà gérée en amont
-
-Le scénario recommandé pour une mise en production est :
-
-- un nginx déjà déployé sur le serveur assure la terminaison TLS ;
-- ce nginx relaie vers le service `proxy` de la stack Docker ;
-- la stack utilise la variante `keycloak-external` si l'IdP existe déjà.
+- `mviewer/` : sous-module Mviewer.
+- `mviewerstudio/` : sous-module Mviewer Studio, utilisé pour construire l'image Docker.
+- [docker/](docker/README.md) : composition, configuration et guide d'utilisation.
+- `resources/keycloak/mviewer-realm.json` : realm de test importé par le Keycloak local.
+- `resources/mviewer/` : dossiers partagés entre Studio, Mviewer et nginx.
 
 ## Démarrage
 
-Le point d'entrée principal est le guide du dossier Docker :
+Configurer `docker/.env.docker` selon le [guide Docker](docker/README.md).
+Toutes les commandes ci-dessous s'exécutent depuis la racine du dépôt.
 
-- [Guide Docker](./docker/README.md)
-
-Exemple courant avec Keycloak déjà existant :
+Avec un Keycloak externe :
 
 ```bash
-cd docker
-./compose.sh -f docker-compose.yml -f docker-compose.keycloak-external.yml up --build
+docker compose --env-file docker/.env.docker -f docker/docker-compose.yml up -d --build
 ```
 
-## Authentification
+Avec le Keycloak local de test :
 
-Selon la variante choisie, l'authentification peut être :
+```bash
+docker compose --env-file docker/.env.docker -f docker/docker-compose.yml --profile keycloak up -d --build
+```
 
-- gérée localement par `oauth2-proxy` + Keycloak ;
-- déléguée à un Keycloak externe ;
-- ou transmise par une gateway amont via des en-têtes HTTP.
+Le profil `keycloak` ajoute le serveur local. Les URL et identifiants Authlib
+se configurent dans `docker/.env.docker` pour le mode choisi.
 
-Les schémas de référence sont dans :
+## Accès
 
-- [archi_oauth2-proxy_schema_login.md](./schemas/archi_oauth2-proxy_schema_login.md)
-- [archi_oauth2-proxy_schema_logout.md](./schemas/archi_oauth2-proxy_schema_logout.md)
+- [Mviewer Studio](http://localhost/mviewerstudio/)
+- [Mviewer](http://localhost/mviewer/)
+- [Administration Keycloak locale](http://localhost/keycloak/admin/) avec le profil `keycloak`.
 
-## Documentation complémentaire
-
-- [README Docker](./docker/README.md)
-
-Ce README racine présente le périmètre du projet. La documentation opérationnelle détaillée est centralisée dans `docker/README.md`.
+Studio utilise le callback `/mviewerstudio/auth/callback`.
+Le [guide Docker](docker/README.md) détaille les variables obligatoires,
+les comptes locaux, les volumes et l'exploitation.
