@@ -2,6 +2,8 @@ import { defineConfig } from 'astro/config';
 import starlight from '@astrojs/starlight';
 
 export default defineConfig({
+  site: 'https://jdev-org.github.io',
+  base: '/mviewer-galaxy',
   integrations: [
     starlight({
       title: 'Mviewer Galaxy',
