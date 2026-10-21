@@ -45,3 +45,15 @@ Chaque page Markdown contient un frontmatter `title`, `description` et
 Utiliser des valeurs d'exemple pour les secrets dans la documentation.
 
 Référence : [configuration manuelle de Starlight](https://starlight.astro.build/manual-setup/).
+
+## Charte graphique
+
+- Bleu nuit : `#1F1F40`, pour l'en-tête et les surfaces sombres.
+- Turquoise : `#2ED2C5`, pour les boutons et les accents.
+- Blanc : `#FFFFFF`, pour les surfaces claires et le symbole du logo.
+
+Le titre d'accueil utilise le bleu nuit en thème clair et un blanc doux en thème
+sombre. Les liens de lecture utilisent une variante turquoise plus foncée sur
+fond blanc pour préserver leur contraste.
+Le logo vectoriel reprend le symbole Mviewer du dépôt et est copié dans
+`src/assets/mviewer-logo.svg` et `public/favicon.svg`.

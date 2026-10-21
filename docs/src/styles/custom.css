@@ -1,21 +1,76 @@
 :root {
-  --sl-color-accent-low: #073e3d;
-  --sl-color-accent: #2dd4bf;
-  --sl-color-accent-high: #c2faf0;
+  --brand-navy: #1f1f40;
+  --brand-turquoise: #2ed2c5;
+  --sl-color-accent-low: #163e48;
+  --sl-color-accent: var(--brand-turquoise);
+  --sl-color-accent-high: #a2ece5;
+  --sl-color-white: #f8f8ff;
+  --sl-color-gray-1: #e5e5f0;
+  --sl-color-gray-2: #c2c2d7;
+  --sl-color-gray-3: #9494b1;
+  --sl-color-gray-4: #565675;
+  --sl-color-gray-5: #353553;
+  --sl-color-gray-6: var(--brand-navy);
+  --sl-color-black: #17172f;
+  --sl-color-bg: #17172f;
+  --sl-color-bg-nav: var(--brand-navy);
+  --sl-color-bg-sidebar: #1b1b37;
 }
 :root[data-theme='light'] {
-  --sl-color-accent-low: #d1faf2;
-  --sl-color-accent: #087f75;
-  --sl-color-accent-high: #064c47;
+  --sl-color-accent-low: #e1f7f4;
+  --sl-color-accent: #087b74;
+  --sl-color-accent-high: #155b5b;
+  --sl-color-white: var(--brand-navy);
+  --sl-color-gray-1: #30304d;
+  --sl-color-gray-2: #4c4c68;
+  --sl-color-gray-3: #73738f;
+  --sl-color-gray-4: #a5a5bc;
+  --sl-color-gray-5: #dedeea;
+  --sl-color-gray-6: #f2f2f9;
+  --sl-color-black: #ffffff;
+  --sl-color-bg: #ffffff;
+  --sl-color-bg-nav: var(--brand-navy);
+  --sl-color-bg-sidebar: #f8f8fc;
+}
+
+/* The logo's navy anchors the navigation in both themes. */
+header.header { color: #ffffff; border-bottom-color: #3b3b5e; }
+header.header .site-title { color: #ffffff; font-weight: 700; }
+header.header .site-title img { height: 2.6rem; width: 2.6rem; }
+header.header site-search button {
+  color: #e5e5f0;
+  background: #29294b;
+  border-color: #494968;
+}
+header.header site-search kbd { color: #e5e5f0; background: #353553; }
+header.header starlight-theme-select { color: #e5e5f0; }
+header.header starlight-theme-select select { color: #e5e5f0; }
+header.header starlight-theme-select svg { color: #e5e5f0; }
+header.header starlight-menu-button button { color: #ffffff; }
+header.header starlight-theme-select option { color: #1f1f40; background: #ffffff; }
+.sl-link-button.primary {
+  background: rgb(239, 196, 0);
+  border-color: rgb(239, 196, 0);
+  color: var(--brand-navy);
+  font-weight: 650;
+}
+.sl-link-button.primary:hover { background: #d9b200; border-color: #d9b200; }
+.sl-link-button.secondary { border-color: var(--sl-color-gray-4); }
+a:focus-visible, button:focus-visible, select:focus-visible {
+  outline: 3px solid var(--sl-color-accent);
+  outline-offset: 3px;
 }
 
 /* Landing page; guides keep Starlight's reading layout. */
 body:has(.galaxy-home) { --sl-content-width: 72rem; }
+body:has(.galaxy-home) .page { min-height: 0; }
+body:has(.galaxy-home) main footer { display: none; }
 body:has(.galaxy-home) .hero {
   padding-block: clamp(2.5rem, 7vw, 6rem) 2rem;
   gap: 2rem;
 }
 body:has(.galaxy-home) .hero h1 {
+  color: var(--sl-color-white);
   font-size: clamp(2.8rem, 5.4vw, 4.7rem);
   line-height: 1.06;
   letter-spacing: -0.055em;
