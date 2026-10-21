@@ -7,13 +7,18 @@ OIDC gérée par Authlib et Keycloak.
 
 - `mviewer/` : sous-module Mviewer.
 - `mviewerstudio/` : sous-module Mviewer Studio, utilisé pour construire l'image Docker.
-- [docker/](docker/README.md) : composition, configuration et guide d'utilisation.
+- [docs/](docs/README.md) : site de documentation Astro Starlight.
+- [docker/](docker/README.md) : accès rapide à la composition et aux guides.
 - `resources/keycloak/mviewer-realm.json` : realm de test importé par le Keycloak local.
 - `resources/mviewer/` : dossiers partagés entre Studio, Mviewer et nginx.
 
 ## Démarrage
 
-Configurer `docker/.env.docker` selon le [guide Docker](docker/README.md).
+Configurer `docker/.env.docker` et les fichiers de `docker/envs/` selon le
+[guide Docker](docker/README.md).
+Le guide explique la différence entre `env_file` (variables des conteneurs)
+et `--env-file` (paramètres Compose), ainsi que le chargement de `.envs-proxy`
+pour configurer le port publié.
 Toutes les commandes ci-dessous s'exécutent depuis la racine du dépôt.
 
 Avec un Keycloak externe :
@@ -29,7 +34,7 @@ docker compose --env-file docker/.env.docker -f docker/docker-compose.yml --prof
 ```
 
 Le profil `keycloak` ajoute le serveur local. Les URL et identifiants Authlib
-se configurent dans `docker/.env.docker` pour le mode choisi.
+se configurent dans `docker/envs/.envs-mviewerstudio` pour le mode choisi.
 
 ## Accès
 
@@ -40,3 +45,14 @@ se configurent dans `docker/.env.docker` pour le mode choisi.
 Studio utilise le callback `/mviewerstudio/auth/callback`.
 Le [guide Docker](docker/README.md) détaille les variables obligatoires,
 les comptes locaux, les volumes et l'exploitation.
+
+## Documentation locale
+
+```bash
+cd docs
+npm ci
+npm run dev
+```
+
+Ouvrir `http://localhost:4321`. Les guides couvrent le démarrage, Keycloak local
+et distant, les variables, les volumes et le dépannage.

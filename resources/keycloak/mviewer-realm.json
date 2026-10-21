@@ -404,6 +404,9 @@
       "standardFlowEnabled": true,
       "directAccessGrantsEnabled": false,
       "serviceAccountsEnabled": false,
+      "attributes": {
+        "post.logout.redirect.uris": "http://localhost/mviewer/##http://localhost:*/mviewer/"
+      },
       "redirectUris": [
         "http://localhost/oauth2/callback",
         "http://localhost:*/oauth2/callback",
