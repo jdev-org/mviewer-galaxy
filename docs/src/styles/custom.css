@@ -1,0 +1,47 @@
+:root {
+  --sl-color-accent-low: #073e3d;
+  --sl-color-accent: #2dd4bf;
+  --sl-color-accent-high: #c2faf0;
+}
+:root[data-theme='light'] {
+  --sl-color-accent-low: #d1faf2;
+  --sl-color-accent: #087f75;
+  --sl-color-accent-high: #064c47;
+}
+
+/* Landing page; guides keep Starlight's reading layout. */
+body:has(.galaxy-home) { --sl-content-width: 72rem; }
+body:has(.galaxy-home) .hero {
+  padding-block: clamp(2.5rem, 7vw, 6rem) 2rem;
+  gap: 2rem;
+}
+body:has(.galaxy-home) .hero h1 {
+  font-size: clamp(2.8rem, 5.4vw, 4.7rem);
+  line-height: 1.06;
+  letter-spacing: -0.055em;
+  text-wrap: balance;
+}
+body:has(.galaxy-home) .hero .tagline { max-width: 34rem; font-size: 1.13rem; line-height: 1.8; }
+body:has(.galaxy-home) .hero img { width: 100%; max-height: 29rem; object-fit: contain; }
+.sl-markdown-content .galaxy-home * { margin-block: 0; }
+.galaxy-strip {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 1.5rem; flex-wrap: wrap; padding: 1.6rem 0;
+  border-block: 1px solid var(--sl-color-gray-5);
+}
+.galaxy-strip > span {
+  font-size: 0.69rem; font-weight: 700; letter-spacing: 0.16em;
+  color: var(--sl-color-accent-high);
+}
+.galaxy-strip > div {
+  display: flex; gap: clamp(1.2rem, 4vw, 3.3rem); flex-wrap: wrap;
+  font-size: 0.93rem; font-weight: 600; color: var(--sl-color-gray-2);
+}
+@media (max-width: 48rem) {
+  body:has(.galaxy-home) .hero { grid-template-columns: minmax(0, 1fr); }
+  body:has(.galaxy-home) .hero > * { min-width: 0; max-width: 100%; }
+  body:has(.galaxy-home) .hero img { max-width: 20rem; }
+  body:has(.galaxy-home) .hero h1 { font-size: clamp(2rem, 10vw, 2.8rem); overflow-wrap: break-word; }
+  body:has(.galaxy-home) .hero .tagline { font-size: 1rem; }
+  body:has(.galaxy-home) .hero .actions { flex-wrap: wrap; justify-content: center; gap: 0.8rem; }
+}
