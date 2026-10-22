@@ -32,7 +32,7 @@ Le client Keycloak doit autoriser le callback
 `https://votre-domaine/mviewerstudio/auth/callback`, ou
 `http://localhost/mviewerstudio/auth/callback` pour un test local.
 Autoriser également le retour après déconnexion vers
-`https://votre-domaine/mviewer/` (ou `http://localhost/mviewer/` en local).
+`https://votre-domaine/` (ou `http://localhost/` en local), la page d’accueil.
 Les claims doivent correspondre au contrôle d'accès configuré par
 `MVIEWERSTUDIO_AUTHLIB_ALLOWED_GROUPS` (par défaut `MVIEWER_ACCESS`).
 

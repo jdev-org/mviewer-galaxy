@@ -18,6 +18,8 @@ services:
       - ./envs/.envs-proxy
     volumes:
       - ./nginx/templates/authlib-keycloak-optional.conf.template:/etc/nginx/templates/default.conf.template:ro
+      - ../header:/usr/share/nginx/html/portal:ro
+      - ../catalogue:/usr/share/nginx/html/catalogue:ro
       - ${MVIEWER_APPS_PATH:-../resources/mviewer/apps}:/usr/share/nginx/html/apps:ro
       - ${MVIEWER_STORE_PATH:-../resources/mviewer/store}:/usr/share/nginx/html/store:ro
       - ${MVIEWER_PUBLIC_PATH:-../resources/mviewer/public}:/usr/share/nginx/html/public:ro

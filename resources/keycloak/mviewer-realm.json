@@ -405,7 +405,7 @@
       "directAccessGrantsEnabled": false,
       "serviceAccountsEnabled": false,
       "attributes": {
-        "post.logout.redirect.uris": "http://localhost/mviewer/##http://localhost:*/mviewer/"
+        "post.logout.redirect.uris": "http://localhost/##http://localhost:*/"
       },
       "redirectUris": [
         "http://localhost/oauth2/callback",

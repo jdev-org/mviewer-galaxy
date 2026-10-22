@@ -102,6 +102,94 @@ Cette commande vérifie la configuration Compose. Les variables applicatives
 sont transmises aux conteneurs ; vérifier ensuite les valeurs requises et le
 parcours de connexion pour contrôler les échanges avec Keycloak.
 
+## Page d’accueil et session
+
+La racine `/` sert le portail contenu dans `header/`, monté en lecture seule
+dans nginx. Il contient une image locale, les liens vers Mviewer et Studio et
+un header dont le bouton de connexion ou déconnexion suit la session Studio.
+Ce répertoire utilise HTML, CSS et JavaScript sans compilation ni dépendance.
+
+### Personnaliser l’accueil
+
+| Fichier | Personnalisation |
+|---|---|
+| `header/config.js` | Nom, sous-titre, logo, image d’accueil et liens `headerLinks` |
+| `catalogue/data.json` | Cartes du catalogue et sélection des cartes à la une avec `favorite` |
+| `header/theme.css` | Couleurs, polices, arrondis, hauteurs et espacements via les variables CSS |
+| `header/custom.css` | Styles libres, prioritaires sur les styles de base |
+| `header/index.html` | Textes et structure du contenu |
+
+Pour ajouter un lien dans le header, ajouter une entrée dans `headerLinks` :
+
+```js
+{ label: "Documentation", href: "https://exemple.fr/docs", newTab: true },
+```
+
+Les liens restent visibles sur mobile et passent à la ligne si nécessaire.
+L’accueil et le catalogue partagent `header/assets/header.css` et
+`header/assets/header.js` pour leur navigation et leur état de connexion.
+Le logo par défaut des deux pages est `catalogue/img/logo_mviewer.svg` ;
+`brand.logo` dans `header/config.js` permet de le remplacer pour les deux pages.
+Dans `theme.css`, `--page-gutter` règle les marges latérales, `--section-padding`
+les espacements des sections et `--card-padding` ceux des cartes. Les marges
+latérales par défaut sont réduites à 3 % (entre 16 et 48 pixels).
+Modifier les fichiers puis recharger la page suffit grâce au montage Docker ;
+aucune reconstruction n’est nécessaire pour ces personnalisations.
+
+### Cartes phares
+
+L’accueil charge `catalogue/data.json` et présente les entrées de `data` dont
+`favorite` vaut le booléen `true`. Le titre et la description sont repris du
+catalogue, et `url_demo` fournit le lien. `image` et `newTab` sont facultatifs ;
+sans image, le visuel d’accueil est utilisé. L’ordre du tableau est conservé.
+Les chemins relatifs des liens et des images sont résolus depuis `/catalogue/`,
+comme sur la page du catalogue. Privilégier un chemin absolu comme `/mviewer/`
+pour pointer vers le visualiseur.
+
+```json
+{
+  "favorite": true,
+  "id": "1",
+  "title": "Ma carte phare",
+  "description": "Présentation de la carte.",
+  "image": "/catalogue/img/ma-carte.webp",
+  "url_demo": "/mviewer/?config=/apps/public/ma-carte.xml"
+}
+```
+
+Si le catalogue est vide (`"data": []`), l’accueil affiche la carte par défaut
+`/mviewer/?config=/apps/default.xml`. Cette carte sert aussi de repli si le
+catalogue ne peut pas être chargé. Un catalogue non vide sans favori masque la
+section et son raccourci. Aucun exemple n’est ajouté automatiquement au catalogue.
+
+Le carrousel se parcourt avec ses boutons, les flèches du clavier ou un geste
+tactile. Il ne défile pas automatiquement. Les hauteurs des images se règlent
+avec `--featured-image-height` et `--featured-image-height-mobile` dans le thème.
+
+Le proxy fournit `/portal/login`, `/portal/logout`, `/portal/studio` et
+`/portal/session` et les relie au préfixe `MVIEWERSTUDIO_URL_PATH_PREFIX`.
+Le bouton de connexion revient à l’accueil après authentification. L’accès à
+Mviewer reste public ; les droits Studio continuent d’être vérifiés côté serveur.
+
+`MVIEWERSTUDIO_AUTHLIB_ANONYMOUS_REDIRECT_URL=/`, dans `.envs-mviewerstudio`,
+renvoie les visiteurs anonymes de Studio à l’accueil. Une valeur vide conserve
+le démarrage direct du parcours de connexion. Après déconnexion, nginx remplace
+le retour OIDC par la racine publique, en conservant le protocole et le port.
+
+Autoriser cette URL racine dans **Valid post logout redirect URIs** du client
+Keycloak. Le realm local fourni contient déjà cette configuration ; un realm
+déjà importé doit être mis à jour dans Keycloak, car modifier le JSON ne modifie
+pas un realm existant. Pour prendre en compte le nouveau montage et le changement
+de Studio, relancer `up -d --build` avec les options du mode choisi.
+
+### Visuel
+
+Le fichier `header/assets/coast.webp` est une illustration générée avec l’outil
+intégré imagegen, puis optimisée en WebP. Prompt : « Vue aérienne réaliste d’un
+estuaire de la côte bretonne, eau turquoise, bancs de sable et champs verts.
+Composition panoramique, océan sombre à gauche pour le texte, côte détaillée à
+droite, lumière douce du matin. Aucun texte, logo, bordure ou élément d’interface. »
+
 ## Variables complémentaires
 
 | Variable | Valeur de référence | Usage |

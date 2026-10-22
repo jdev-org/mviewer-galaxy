@@ -10,6 +10,15 @@ server {
 
     client_max_body_size 20m;
 
+    location = /catalogue {
+        return 302 /catalogue/$is_args$args;
+    }
+
+    location /catalogue/ {
+        alias /usr/share/nginx/html/catalogue/;
+        index index.html;
+    }
+
     location = /mviewer {
         return 302 /mviewer/$is_args$args;
     }
@@ -36,8 +45,8 @@ server {
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $http_x_forwarded_proto;
         proxy_set_header X-Forwarded-Host $http_host;
-        # Return to Mviewer after the provider closes the Studio session.
-        proxy_redirect "~^(.*[?&]post_logout_redirect_uri=)[^&]*(.*)$" $1$public_scheme://$http_host/mviewer/$2;
+        # Return to the portal after the provider closes the Studio session.
+        proxy_redirect "~^(.*[?&]post_logout_redirect_uri=)[^&]*(.*)$" $1$public_scheme://$http_host/$2;
         proxy_pass http://mviewerstudio:8000/${MVIEWERSTUDIO_URL_PATH_PREFIX}/;
     }
 
@@ -57,7 +66,30 @@ server {
         proxy_pass http://$keycloak_upstream;
     }
 
-    location / {
+    location = /portal/login {
+        return 302 /${MVIEWERSTUDIO_URL_PATH_PREFIX}/auth/login?next=/;
+    }
+
+    location = /portal/studio {
         return 302 /${MVIEWERSTUDIO_URL_PATH_PREFIX}/;
+    }
+
+    location = /portal/logout {
+        return 302 /${MVIEWERSTUDIO_URL_PATH_PREFIX}/logout;
+    }
+
+    location = /portal/session {
+        proxy_set_header Host $http_host;
+        proxy_set_header X-Forwarded-Proto $http_x_forwarded_proto;
+        proxy_set_header X-Forwarded-Host $http_host;
+        proxy_pass http://mviewerstudio:8000/${MVIEWERSTUDIO_URL_PATH_PREFIX}/api/user;
+        proxy_hide_header Cache-Control;
+        add_header Cache-Control "no-store" always;
+    }
+
+    location / {
+        root /usr/share/nginx/html/portal;
+        index index.html;
+        try_files $uri $uri/ =404;
     }
 }
