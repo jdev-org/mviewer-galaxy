@@ -33,9 +33,9 @@ docker compose --env-file docker/.env.docker -f docker/docker-compose.yml up -d 
 | Sujet | Source Markdown |
 |---|---|
 | Démarrage | [Guide](../docs/src/content/docs/guides/demarrage.md) |
-| Keycloak local | [Guide](../docs/src/content/docs/guides/keycloak-local.md) |
-| Keycloak distant | [Guide](../docs/src/content/docs/guides/keycloak-distant.md) |
-| Variables et fichiers env | [Référence](../docs/src/content/docs/reference/environnement.md) |
+| Keycloak local | [Guide](../docs/src/content/docs/guides/authentification/keycloak/local.md) |
+| Keycloak distant | [Guide](../docs/src/content/docs/guides/authentification/keycloak/distant.md) |
+| Adapter à son environnement | [Référence](../docs/src/content/docs/reference/environnement.md) |
 | Volumes et exploitation | [Guide](../docs/src/content/docs/guides/exploitation.md) |
 | Reverse proxy et HTTPS | [Guide](../docs/src/content/docs/guides/https.md) |
 | Dépannage | [Référence](../docs/src/content/docs/reference/depannage.md) |
