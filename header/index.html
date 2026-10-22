@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="Mviewer Galaxy : explorez vos cartes et créez vos applications cartographiques.">
+    <meta name="theme-color" content="#1f1f40">
+    <title>Mviewer Galaxy — Votre territoire, de nouvelles perspectives</title>
+    <link rel="icon" href="/catalogue/img/favicon.ico">
+    <link rel="stylesheet" href="/theme.css">
+    <link rel="stylesheet" href="/assets/portal.css">
+    <link rel="stylesheet" href="/assets/header.css">
+    <link rel="stylesheet" href="/custom.css">
+    <script src="/config.js" defer></script>
+    <script src="/assets/header.js" defer></script>
+    <script src="/assets/portal.js" defer></script>
+  </head>
+  <body>
+    <a class="skip-link" href="#contenu">Aller au contenu</a>
+    <header class="site-header">
+      <a class="brand" href="/" aria-label="Mviewer Galaxy, accueil">
+        <img class="brand-mark" src="/catalogue/img/logo_mviewer.svg" alt="">
+        <span><span id="brand-name">mviewer</span><span class="brand-sub" id="brand-subtitle">GALAXY</span></span>
+      </a>
+      <nav class="header-nav" aria-label="Navigation principale">
+        <a href="/catalogue/">Explorer</a>
+        <a href="/mviewer/">Mviewer</a>
+        <a href="/portal/studio">Studio</a>
+      </nav>
+      <div class="account">
+        <span id="user-name" class="user-name" hidden></span>
+        <a id="auth-link" class="auth-link" href="/portal/login">Se connecter <span aria-hidden="true">↗</span></a>
+      </div>
+    </header>
+
+    <main id="contenu">
+      <section class="hero" aria-labelledby="hero-title">
+        <img class="hero-image" src="/assets/coast.webp" alt="" fetchpriority="high" width="2048" height="768">
+        <div class="hero-content">
+          <p class="eyebrow"><span></span> LA CARTOGRAPHIE EN PERSPECTIVE</p>
+          <h1 id="hero-title">Votre territoire.<br>De nouvelles<br><em>perspectives.</em></h1>
+          <p class="hero-description">Explorez vos données, composez vos cartes<br class="desktop-break"> et partagez votre regard sur le territoire.</p>
+          <a class="hero-link" id="featured-shortcut" href="#cartes-phares" hidden>Découvrir les cartes <span aria-hidden="true">↓</span></a>
+        </div>
+        <span class="image-caption">DONNÉES CARTOGRAPHIQUES</span>
+      </section>
+
+      <section class="featured-maps" id="cartes-phares" aria-labelledby="featured-title" hidden>
+        <div class="section-heading">
+          <div><p class="eyebrow">À DÉCOUVRIR</p><h2 id="featured-title">Cartes à la une</h2></div>
+          <div class="carousel-controls" aria-label="Navigation des cartes phares">
+            <button id="featured-prev" type="button" aria-label="Carte précédente" aria-controls="featured-track">←</button>
+            <span id="featured-position" role="status" aria-live="polite" aria-atomic="true"></span>
+            <button id="featured-next" type="button" aria-label="Carte suivante" aria-controls="featured-track">→</button>
+          </div>
+        </div>
+        <div id="featured-track" class="carousel-track" role="region" aria-roledescription="carrousel" aria-label="Cartes phares" tabindex="0"></div>
+      </section>
+      <p id="session-status" class="session-status" role="status"></p>
+      <noscript><p class="session-status">Activez JavaScript pour afficher les cartes phares et l’état de votre session.</p></noscript>
+    </main>
+    <footer><a href="/" class="footer-brand">mviewer galaxy</a><p>Un autre regard sur vos données.</p><a href="#contenu">Retour en haut <span aria-hidden="true">↑</span></a></footer>
+  </body>
+</html>

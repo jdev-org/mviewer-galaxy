@@ -1,0 +1,57 @@
+@import url("https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap");
+
+/* Charte graphique : couleurs, polices, formes et espacements.
+   Les variables s'appliquent aussi sur mobile, sans compilation. */
+:root {
+  --primary: #1f1f40;
+  --secondary: #2ed2c5;
+  --ink: var(--primary);
+  --paper: #ffffff;
+  --accent: var(--secondary);
+  --muted: #6c757d;
+  --focus: var(--primary);
+  --surface: #ffffff;
+  --border: #dee2e6;
+  --studio-surface: #eaf0df;
+  --studio-border: #d6dfca;
+  --button-border: var(--primary);
+  --button-hover: #edfafa;
+  --icon-surface: #f3f6ec;
+  --icon-border: #d4ded1;
+  --studio-icon-surface: #dfe8cf;
+  --studio-icon-border: #cbd7ba;
+  --label-color: #687e73;
+  --description-color: #6c757d;
+  --note-color: #52664c;
+  --number-color: #b5c3b0;
+  --card-shadow: 0 8px 24px #1f1f4014;
+
+  --hero-background: var(--primary);
+  --hero-text: #ffffff;
+  --hero-label: #ffffff;
+  --hero-description: #f0f1f5;
+  --hero-link-border: var(--secondary);
+  --hero-caption: #ffffff;
+  --hero-overlay: linear-gradient(90deg, #1f1f40ed, #1f1f40a6 52%, #1f1f4033);
+  --hero-overlay-mobile: linear-gradient(90deg, #1f1f40ed, #1f1f4080);
+
+  --font-body: "Poppins", "Segoe UI", Arial, sans-serif;
+  --font-heading: var(--font-body);
+  --page-gutter: clamp(16px, 3vw, 48px);
+  --header-height: 76px;
+  --header-gap: 24px;
+  --nav-gap: 24px;
+  --hero-height: 510px;
+  --hero-padding: 40px;
+  --section-padding: 28px;
+  --card-gap: 16px;
+  --card-padding: 22px;
+  --card-radius: 4px;
+  --button-radius: 4px;
+  --featured-card-width: 240px;
+  --featured-card-height: 280px;
+  --featured-image-height: 100px;
+  --featured-image-height-mobile: 100px;
+  --featured-section-padding: 16px;
+  --featured-copy-padding: 16px;
+}
