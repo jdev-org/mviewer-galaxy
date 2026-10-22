@@ -48,6 +48,10 @@ header.header starlight-theme-select select { color: #e5e5f0; }
 header.header starlight-theme-select svg { color: #e5e5f0; }
 header.header starlight-menu-button button { color: #ffffff; }
 header.header starlight-theme-select option { color: #1f1f40; background: #ffffff; }
+header.header starlight-lang-select,
+header.header starlight-lang-select select,
+header.header starlight-lang-select svg { color: #e5e5f0; }
+header.header starlight-lang-select option { color: #1f1f40; background: #ffffff; }
 .sl-link-button.primary {
   background: rgb(239, 196, 0);
   border-color: rgb(239, 196, 0);

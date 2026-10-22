@@ -20,7 +20,7 @@ Configurer les fichiers suivants :
 
 ## Choisir son Keycloak
 
-Choisir le [serveur local](/mviewer-galaxy/guides/keycloak-local/) ou le [serveur distant](/mviewer-galaxy/guides/keycloak-distant/) avant de démarrer.
+Choisir le [serveur local](/mviewer-galaxy/guides/authentification/keycloak/local/) ou le [serveur distant](/mviewer-galaxy/guides/authentification/keycloak/distant/) avant de démarrer.
 
 ## Vérifier la configuration
 

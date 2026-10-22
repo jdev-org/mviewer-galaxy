@@ -1,11 +1,11 @@
 ---
-title: "Variables et fichiers env"
+title: "Adapter à son environnement"
 description: "Comprendre env_file, --env-file et la configuration de chaque service."
 sidebar:
   order: 1
 ---
 
-Les variables sont réparties selon leur usage :
+Vous pouvez adapter l'installation à votre environnement à partir des variables disponibles dans ces fichiers :
 
 | Fichier | Paramètres |
 |---|---|

@@ -45,4 +45,4 @@ Vérifier les autorisations de l'utilisateur et leur correspondance avec `MVIEWE
 
 `env_file` alimente le conteneur ; `--env-file` alimente les expressions du Compose. Pour utiliser `PROXY_HTTP_PORT` depuis `.envs-proxy`, charger aussi ce fichier dans la commande.
 
-Voir [Variables et fichiers env](/mviewer-galaxy/reference/environnement/).
+Voir [Adapter à son environnement](/mviewer-galaxy/reference/environnement/).

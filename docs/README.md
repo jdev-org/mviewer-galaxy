@@ -1,6 +1,6 @@
 # Documentation Mviewer Galaxy
 
-Site statique en français construit avec Astro et Starlight.
+Site statique en français et en anglais construit avec Astro et Starlight.
 
 ## Développement
 
@@ -42,13 +42,32 @@ sélectionner **Pages → Source → GitHub Actions**.
 
 - `src/content/docs/index.mdx` : accueil.
 - `src/content/docs/guides/` : parcours de démarrage et exploitation.
+- `src/content/docs/guides/authentification/` : guides séparés par technologie ; Keycloak local et distant sont documentés, GeoNode et geOrchestra Gateway sont à venir.
 - `src/content/docs/reference/` : environnement, dépannage et confidentialité.
 - `astro.config.mjs` : langue, navigation et titre.
 - `src/styles/custom.css` : couleurs.
 
-Chaque page Markdown contient un frontmatter `title`, `description` et
-`sidebar.order`. Les rubriques de navigation sont générées à partir des dossiers.
+Chaque page Markdown contient un frontmatter `title` et `description`.
+La navigation est définie dans `astro.config.mjs` ; les guides Keycloak et les
+pages de référence sont générés à partir des dossiers, dans l’ordre de `sidebar.order`.
 Utiliser des valeurs d'exemple pour les secrets dans la documentation.
+
+## Traductions
+
+Le français est la langue par défaut à `/mviewer-galaxy/`. La version anglaise
+est disponible à `/mviewer-galaxy/en/`. Le sélecteur de langue de Starlight
+permet de passer à la traduction de la page courante.
+
+Les pages françaises restent dans `src/content/docs/`. Pour chaque page,
+ajouter sa traduction dans `src/content/docs/en/` avec le même chemin relatif
+et le même nom de fichier, afin de conserver la correspondance entre langues.
+Traduire le contenu, les titres, les descriptions, les textes alternatifs et
+les libellés des liens. Les liens internes anglais doivent commencer par
+`/mviewer-galaxy/en/`. Conserver les commandes et les noms de variables.
+
+Les libellés de groupes de navigation sont traduits avec `translations.en`
+dans `astro.config.mjs`. Starlight traduit ses propres éléments d’interface.
+L’illustration d’accueil anglaise est `src/assets/galaxy-map-en.svg`.
 
 Référence : [configuration manuelle de Starlight](https://starlight.astro.build/manual-setup/).
 
