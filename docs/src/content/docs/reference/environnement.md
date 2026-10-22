@@ -9,7 +9,7 @@ Vous pouvez adapter l'installation à votre environnement à partir des variable
 
 | Fichier | Paramètres |
 |---|---|
-| `docker/.env.docker` | `PROXY_HTTP_PORT`, `MVIEWERSTUDIO_UID`, `MVIEWERSTUDIO_GID` |
+| `docker/.env.docker` | `PROXY_HTTP_PORT`, `MVIEWERSTUDIO_UID`, `MVIEWERSTUDIO_GID`, `MVIEWER_APPS_PATH`, `MVIEWER_STORE_PATH`, `MVIEWER_PUBLIC_PATH` |
 | `docker/envs/.envs-proxy` | `NGINX_HOST`, `MVIEWERSTUDIO_URL_PATH_PREFIX` |
 | `docker/envs/.envs-mviewerstudio` | Authlib, session, organisation et chemins applicatifs |
 | `docker/envs/.envs-keycloak` | Variables `KC_*` du serveur local |

@@ -18,17 +18,17 @@ services:
       - ./envs/.envs-proxy
     volumes:
       - ./nginx/templates/authlib-keycloak-optional.conf.template:/etc/nginx/templates/default.conf.template:ro
-      - ../resources/mviewer/apps:/usr/share/nginx/html/apps:ro
-      - ../resources/mviewer/store:/usr/share/nginx/html/store:ro
-      - ../resources/mviewer/public:/usr/share/nginx/html/public:ro
+      - ${MVIEWER_APPS_PATH:-../resources/mviewer/apps}:/usr/share/nginx/html/apps:ro
+      - ${MVIEWER_STORE_PATH:-../resources/mviewer/store}:/usr/share/nginx/html/store:ro
+      - ${MVIEWER_PUBLIC_PATH:-../resources/mviewer/public}:/usr/share/nginx/html/public:ro
 
   mviewer:
     image: mviewer/mviewer
     restart: unless-stopped
     volumes:
-      - ../resources/mviewer/apps:/usr/share/nginx/html/apps:ro
-      - ../resources/mviewer/store:/usr/share/nginx/html/store:ro
-      - ../resources/mviewer/public:/usr/share/nginx/html/public:ro
+      - ${MVIEWER_APPS_PATH:-../resources/mviewer/apps}:/usr/share/nginx/html/apps:ro
+      - ${MVIEWER_STORE_PATH:-../resources/mviewer/store}:/usr/share/nginx/html/store:ro
+      - ${MVIEWER_PUBLIC_PATH:-../resources/mviewer/public}:/usr/share/nginx/html/public:ro
 
   mviewerstudio:
     build:
@@ -40,14 +40,14 @@ services:
       keycloak:
         condition: service_healthy
         required: false
-    # Match the owner of resources/mviewer/apps on the host.
+    # Match the owner of the shared directories on the host.
     user: "${MVIEWERSTUDIO_UID:-1000}:${MVIEWERSTUDIO_GID:-1000}"
     env_file:
       - ./envs/.envs-mviewerstudio
     volumes:
-      - ../resources/mviewer/apps:/home/mvuser/apps
-      - ../resources/mviewer/store:/home/mvuser/store
-      - ../resources/mviewer/public:/home/mvuser/public
+      - ${MVIEWER_APPS_PATH:-../resources/mviewer/apps}:/home/mvuser/apps
+      - ${MVIEWER_STORE_PATH:-../resources/mviewer/store}:/home/mvuser/store
+      - ${MVIEWER_PUBLIC_PATH:-../resources/mviewer/public}:/home/mvuser/public
 
   keycloak:
     profiles: [keycloak]

@@ -8,6 +8,7 @@ MVIEWERSTUDIO_AUTHLIB_CLIENT_SECRET="mviewerstudio-local-secret"
 MVIEWERSTUDIO_AUTHLIB_ISSUER="http://localhost/keycloak/realms/mviewer"
 MVIEWERSTUDIO_AUTHLIB_METADATA_URL="http://keycloak:8080/keycloak/realms/mviewer/.well-known/openid-configuration"
 MVIEWERSTUDIO_AUTHLIB_SCOPE="openid profile email organization"
+MVIEWERSTUDIO_AUTHLIB_CLAIMS_MAPPING='{"organization":"organization[0]"}'
 MVIEWERSTUDIO_AUTH_ALLOWED_ROLES="MVIEWER_ACCESS"
 MVIEWERSTUDIO_AUTH_MODE="authlib"
 MVIEWERSTUDIO_PUBLISH_PATH="/home/mvuser/apps/public"
