@@ -162,3 +162,21 @@
         enabled: true
         state: started
         daemon_reload: "{{ geoserver_unit.changed }}"
+
+    - name: Appliquer les configurations PostgreSQL et GeoServer avant de créer l'entrepôt
+      ansible.builtin.meta: flush_handlers
+
+    - name: Créer le workspace par défaut et sa connexion PostGIS
+      galaxy_geoserver:
+        env_content: "{{ lookup('ansible.builtin.file', geoserver_postgres_env_file, rstrip=false) }}"
+        database: "{{ postgres_database | default('donneessig') }}"
+        username: "{{ postgres_username | default('usersig') }}"
+        host: "{{ geoserver_postgres_host }}"
+        port: "{{ geoserver_postgres_port }}"
+        workspace: "{{ geoserver_workspace }}"
+        datastore: "{{ geoserver_datastore }}"
+        url: "{{ geoserver_rest_url }}"
+        admin_username: "{{ geoserver_admin_username }}"
+        admin_password: "{{ geoserver_admin_password }}"
+        state_file: "{{ geoserver_catalog_state_file }}"
+      no_log: true
