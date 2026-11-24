@@ -12,7 +12,7 @@
           - mviewerstudio_secret_key | length >= 32
           - mviewerstudio_auth_mode in ['public', 'authlib']
           - mviewerstudio_url_prefix is match('^[a-zA-Z0-9_-]+$')
-          - mviewerstudio_url_prefix not in ['mviewer', 'apps', 'home']
+          - mviewerstudio_url_prefix not in ['mviewer', 'apps', 'home', 'geoserver']
           - mviewerstudio_port | int > 1023
           - mviewerstudio_port | int < 65536
           - nginx_http_port | int > 0

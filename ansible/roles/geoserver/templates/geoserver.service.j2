@@ -10,6 +10,8 @@ Group={{ geoserver_group }}
 WorkingDirectory={{ geoserver_install_dir }}
 Environment="GEOSERVER_DATA_DIR={{ geoserver_data_dir }}"
 Environment="GEOSERVER_LOG_LOCATION={{ geoserver_log_dir }}/geoserver.log"
+Environment="PROXY_BASE_URL_HEADERS=true"
+Environment="PROXY_BASE_URL=${X-Forwarded-Proto}://${X-Forwarded-Host}/geoserver http://127.0.0.1:{{ geoserver_port }}/geoserver"
 StandardOutput=append:{{ geoserver_log_dir }}/jetty.log
 StandardError=inherit
 ExecStart={{ geoserver_java_binary }} {{ geoserver_java_options | join(' ') }} -DGEOSERVER_DATA_DIR={{ geoserver_data_dir }} -DGEOSERVER_LOG_LOCATION={{ geoserver_log_dir }}/geoserver.log -Djava.io.tmpdir={{ geoserver_work_dir }} -jar {{ geoserver_install_dir }}/start.jar jetty.http.host={{ geoserver_bind_address }} jetty.http.port={{ geoserver_port }}

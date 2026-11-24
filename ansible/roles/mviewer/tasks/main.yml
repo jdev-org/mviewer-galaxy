@@ -16,7 +16,7 @@
   ansible.builtin.assert:
     that:
       - item.name is match('^[a-zA-Z0-9_-]+$')
-      - item.name not in ['index', 'js', 'css', 'lib', 'img', 'demo', 'addons', 'home', mviewerstudio_url_prefix]
+      - item.name not in ['index', 'js', 'css', 'lib', 'img', 'demo', 'addons', 'home', 'geoserver', mviewerstudio_url_prefix]
       - item.path is match('^/')
       - item.path | normpath != (mviewer_install_dir ~ '/' ~ item.name) | normpath
   loop: "{{ mviewer_shared_directories }}"
