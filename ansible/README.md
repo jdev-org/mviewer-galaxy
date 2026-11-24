@@ -47,6 +47,10 @@ Les sources sont clonées sur la cible depuis les dépôts définis dans les
 variables ; les changements locaux des sous-modules ne sont pas transférés.
 Les branches par défaut correspondent à `.gitmodules`.
 
+Préparer aussi `.env` depuis `.env.example` et renseigner le mot de passe de la
+base SIG, puis adapter `roles/postgres/templates/pg_hba.conf.j2` avec les clients
+autorisés avant une installation complète (voir « PostgreSQL et PostGIS »).
+
 Préparer les secrets :
 
 ```bash
@@ -153,16 +157,88 @@ Sur une cible disposant déjà de Python et de dépôts APT configurés, install
 uniquement PostgreSQL et PostGIS :
 
 ```bash
+cp .env.example .env
+chmod 600 .env
+# Modifier .env et renseigner POSTGRES_PASSWORD avant de lancer Ansible.
+# Adapter roles/postgres/templates/pg_hba.conf.j2 avec les clients autorisés.
 ansible-playbook playbooks/install.yml --tags postgres --ask-become-pass
 ```
 
-Le rôle conserve la configuration PostgreSQL fournie par la distribution.
-Il ne crée ni base applicative ni utilisateur SQL. Pour activer PostGIS dans
-une base existante, remplacer `ma_base` par son nom :
+Le fichier `ansible/.env`, lu sur le poste de contrôle, configure la base SIG :
+
+```dotenv
+POSTGRES_DB=donneessig
+POSTGRES_USER=usersig
+POSTGRES_PASSWORD=
+```
+
+Renseigner le mot de passe : une valeur vide est refusée avant l'installation.
+Les noms par défaut sont `donneessig` et `usersig` si les deux premières clés
+sont omises. Les noms acceptent de 1 à 63 caractères minuscules, chiffres et
+underscores, sans chiffre initial. Le mot de passe est une valeur littérale,
+éventuellement entre guillemets simples ou doubles : les caractères `$`, `%`,
+`#` et `=` sont conservés, sans expansion de variables ni interprétation shell.
+Écrire les commentaires sur leurs propres lignes ; les valeurs sur plusieurs
+lignes ne sont pas prises en charge. Ne pas commiter ce fichier : `.env` et ses
+variantes sont ignorés par Git, seul `.env.example` sert de modèle.
+
+Pour utiliser un autre fichier, ajouter par exemple
+`-e postgres_env_file=/chemin/production.env` à la commande. Cette configuration
+est requise pour le rôle `postgres`, y compris lors d'une installation complète.
+Le tag `check` seul n'en a pas besoin. Le rôle `geoserver` lit aussi ce fichier
+pour configurer son entrepôt PostGIS.
+
+Le rôle crée l'utilisateur SQL avec connexion autorisée, sans droits
+superutilisateur ni création de rôles ou de bases, puis la base dont il est
+propriétaire, le schéma `public` dont il est aussi propriétaire et l'extension
+PostGIS. Les identifiants sont distincts des comptes
+Linux et SSH. La configuration s'applique au serveur local sur le port
+`postgres_port` (5432 par défaut), via `postgres_socket_dir` (`/var/run/postgresql`).
+Le module local au rôle utilise `psql` et Python standard ; aucune collection
+Ansible ni bibliothèque Python PostgreSQL supplémentaire n'est nécessaire.
+
+Les passages suivants conservent la base et ses données, et ne changent le mot
+de passe que si sa valeur dans `.env` change. Les mots de passe sont stockés
+avec SCRAM-SHA-256 et les tâches contenant des secrets sont masquées.
+Changer le nom de base ou d'utilisateur crée les nouvelles ressources sans
+supprimer les anciennes ni transférer leurs données. En mode `--check`, le
+fichier `.env` est validé, mais le provisionnement SQL et les accès réseau sont ignorés.
+
+Si la base existe déjà, son propriétaire est ajusté à l'utilisateur configuré.
+Les tables existantes conservent leurs propriétaires et leurs droits ; leur
+migration éventuelle reste une opération distincte.
+
+### Préparer pg_hba.conf avant l'installation
+
+Modifier `roles/postgres/templates/pg_hba.conf.j2` avant de lancer le rôle.
+Les IP autorisées se définissent dans ce template. Le fichier `.env` contient
+uniquement les noms et le mot de passe de la base SIG.
+
+Le template contient l'administration locale par `peer`, les connexions locales
+de GeoServer et des exemples commentés pour ajouter des IP ou réseaux CIDR.
+Ajouter les clients autorisés avant les lignes `reject`, par exemple :
+
+```text
+host "{{ postgres_configuration.database }}" "{{ postgres_configuration.username }}" 192.0.2.10/32 scram-sha-256
+```
+
+Conserver les variables Jinja : la base et l'utilisateur seront lus dans `.env`.
+Le template remplace entièrement le fichier `pg_hba.conf` du serveur sélectionné
+par `postgres_port` : y reporter aussi les règles spécifiques à une installation
+existante. Un autre template peut être fourni via `postgres_hba_template` dans
+`site.yml` (chemin absolu ou nom d'un template du rôle).
+
+Une tâche du rôle déploie ce fichier, vérifie sa syntaxe via PostgreSQL puis
+notifie son rechargement. `postgresql.conf` est également configuré avec
+`listen_addresses = '*'`. Le serveur écoute donc sur toutes ses interfaces ;
+les clients SIG admis sont ceux du template. Les changements d'écoute déclenchent
+le redémarrage du cluster actif concerné. Le pare-feu doit autoriser les connexions
+souhaitées au port PostgreSQL.
+
+Pour vérifier la base créée :
 
 ```bash
-sudo -u postgres psql --dbname=ma_base --set=ON_ERROR_STOP=1 --command='CREATE EXTENSION IF NOT EXISTS postgis;'
-sudo -u postgres psql --dbname=ma_base --command='SELECT PostGIS_Full_Version();'
+psql -h 127.0.0.1 -U usersig -d donneessig -W --command='SELECT PostGIS_Full_Version();'
 sudo systemctl status postgresql
 ```
 
@@ -172,6 +248,27 @@ Le rôle `geoserver` utilise la distribution binaire officielle GeoServer
 `3.0.2`, qui inclut Jetty `12.1.14`. Il installe le JRE Java 21 via APT et
 utilise directement le binaire de ce paquet, indépendamment de la version Java
 par défaut du système. Il vérifie que la JVM utilisée est bien Java 21.
+
+Après démarrage, le rôle crée le workspace `donnessig`, le définit comme workspace
+par défaut, puis crée l'entrepôt PostGIS `postgis`. Celui-ci utilise la base et
+l'utilisateur de `.env` (`donneessig` / `usersig` par défaut), le schéma `public`
+et le même mot de passe. La connexion à PostgreSQL est vérifiée sans publication
+automatique de couches. Exécuter le rôle `postgres` avant `geoserver` pour
+préparer la base ; le playbook complet respecte cet ordre.
+
+Les variables `geoserver_workspace`, `geoserver_datastore`,
+`geoserver_postgres_host` et `geoserver_postgres_port` adaptent ce paramétrage.
+Les accès REST utilisent `geoserver_admin_username: admin` et le mot de passe
+initial `geoserver` de la distribution. Si le mot de passe administrateur a été
+changé, fournir sa valeur actuelle via `geoserver_admin_password`, par exemple
+dans le fichier Ansible Vault. Le rôle utilise ce compte et ne modifie pas son
+mot de passe.
+
+La configuration du catalogue passe par l'API REST, afin de conserver le
+chiffrement des mots de passe par GeoServer. Une empreinte protégée en mode
+`0600`, dans `/var/cache/geoserver-downloads/postgis-catalog.json`, permet de
+détecter les changements de mot de passe et d'éviter de réécrire l'entrepôt à
+chaque passage. Les autres workspaces et entrepôts sont conservés.
 
 Les paramètres du rôle sont dans `roles/geoserver/defaults/main.yml` et peuvent
 être remplacés dans `site.yml`, par exemple :
@@ -224,14 +321,13 @@ Pour changer de version, adapter ensemble `geoserver_version` et
 `geoserver_archive_checksum` avec le SHA-256 de la nouvelle archive officielle ;
 le nouveau logiciel sera installé dans son propre répertoire.
 
-Le rôle ne publie pas GeoServer dans nginx. Pour accéder à l'interface depuis le
-poste de contrôle, ouvrir un tunnel SSH (adapter l'hôte et le port si nécessaire) :
+nginx publie GeoServer sous `/geoserver/`, vers `127.0.0.1:8080` par défaut.
+Le contexte `/geoserver` et les paramètres des requêtes OGC sont conservés.
+Le service GeoServer utilise les en-têtes du proxy pour construire les URL
+publiques ; `galaxy_public_scheme` choisit leur schéma HTTP ou HTTPS.
 
-```bash
-ssh -L 8080:127.0.0.1:8080 utilisateur@serveur
-```
-
-Ouvrir ensuite `http://localhost:8080/geoserver/`. L'installation initiale utilise
+Ouvrir `http://<nginx_server_name>/geoserver/` (adapter le port et le schéma).
+L'installation initiale utilise
 le compte GeoServer `admin` / `geoserver` fourni par la distribution : changer ce
 mot de passe dans l'interface avant de publier le service. Pour vérifier la cible :
 
@@ -357,7 +453,8 @@ virtualenv appartiennent à root. Les répertoires partagés, y compris `store`,
 sont servis par nginx comme dans la composition Docker.
 Sauvegarder le répertoire de données et les secrets avant une mise à jour.
 
-Mviewer est accessible sur `/mviewer/`, Studio sur `/mviewerstudio/`, et `/`
+Mviewer est accessible sur `/mviewer/`, Studio sur `/mviewerstudio/`,
+GeoServer sur `/geoserver/`, et `/`
 redirige vers l'accueil `/home/`. Le site nginx par défaut est désactivé ; les autres sites
 existants sont conservés. Adapter le port si une autre stack écoute déjà dessus.
 
