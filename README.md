@@ -9,6 +9,7 @@ OIDC gérée par Authlib et Keycloak.
 - `mviewerstudio/` : sous-module Mviewer Studio, utilisé pour construire l'image Docker.
 - [docs/](docs/README.md) : site de documentation Astro Starlight.
 - [docker/](docker/README.md) : accès rapide à la composition et aux guides.
+- [ansible/](ansible/README.md) : installation native Debian/Ubuntu avec nginx et systemd.
 - `resources/keycloak/mviewer-realm.json` : realm de test importé par le Keycloak local.
 - `resources/mviewer/` : dossiers partagés entre Studio, Mviewer et nginx.
 
