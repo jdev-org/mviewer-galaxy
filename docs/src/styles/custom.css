@@ -16,6 +16,11 @@
   --sl-color-bg-nav: var(--brand-navy);
   --sl-color-bg-sidebar: #1b1b37;
 }
+
+.sl-markdown-content .ansible-section-anchor {
+  margin: 0;
+  scroll-margin-top: calc(var(--sl-nav-height) + 1rem);
+}
 :root[data-theme='light'] {
   --sl-color-accent-low: #e1f7f4;
   --sl-color-accent: #087b74;

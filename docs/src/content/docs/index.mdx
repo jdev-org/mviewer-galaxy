@@ -6,20 +6,24 @@ prev: false
 next: false
 hero:
   title: "Votre atelier<br />cartographique."
-  tagline: "Créez avec Studio. Explorez avec Mviewer. Connectez vos utilisateurs. Une stack, un point de départ."
+  tagline: "Créez avec Studio. Explorez avec Mviewer. Publiez vos données avec GeoServer. Connectez vos utilisateurs."
   image:
     file: ../../assets/galaxy-map.svg
-    alt: Mviewer et Studio reliés à une stack commune avec Keycloak pour l’authentification.
+    alt: Mviewer, Studio et GeoServer reliés à une stack commune avec Keycloak pour l’authentification.
   actions:
-    - text: Démarrer
+    - text: Démarrer avec Docker
       link: /mviewer-galaxy/guides/demarrage/
       icon: right-arrow
       variant: primary
+    - text: Installer avec Ansible
+      link: /mviewer-galaxy/guides/installation-ansible/
+      icon: right-arrow
+      variant: secondary
 ---
 
 <div className="galaxy-home">
   <div className="galaxy-strip" aria-label="Technologies de la stack">
     <span>DES CARTES AUX ÉQUIPES</span>
-    <div><span>Mviewer</span><span>Mviewerstudio</span><span>Docker</span><span>Keycloak</span></div>
+    <div><span>Mviewer</span><span>Mviewerstudio</span><span>GeoServer</span><span>Docker</span><span>Ansible</span><span>Keycloak</span></div>
   </div>
 </div>

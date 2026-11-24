@@ -1,9 +1,13 @@
 ---
-title: "Dépannage"
-description: "Identifier les erreurs de démarrage, de connexion et de déconnexion."
+title: "Dépannage Docker"
+description: "Diagnostiquer les erreurs de démarrage et d'authentification du déploiement Docker."
 sidebar:
   order: 2
 ---
+
+Cette page concerne le déploiement Docker Compose.
+
+Pour l'installation native, consulter le [Dépannage Ansible](/mviewer-galaxy/guides/ansible/depannage/).
 
 ## Consulter les journaux
 
@@ -45,4 +49,4 @@ Vérifier les autorisations de l'utilisateur et leur correspondance avec `MVIEWE
 
 `env_file` alimente le conteneur ; `--env-file` alimente les expressions du Compose. Pour utiliser `PROXY_HTTP_PORT` depuis `.envs-proxy`, charger aussi ce fichier dans la commande.
 
-Voir [Adapter à son environnement](/mviewer-galaxy/reference/environnement/).
+Voir [Adapter à son environnement](/mviewer-galaxy/guides/environnement/).

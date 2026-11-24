@@ -1,9 +1,13 @@
 ---
-title: "Troubleshooting"
-description: "Identify startup, sign-in and sign-out errors."
+title: "Docker troubleshooting"
+description: "Diagnose startup and authentication errors in the Docker deployment."
 sidebar:
   order: 2
 ---
+
+This page covers Docker Compose deployments.
+
+For a native installation, see [Ansible troubleshooting](/mviewer-galaxy/en/guides/ansible/depannage/).
 
 ## Check the logs
 
@@ -45,4 +49,4 @@ Check the user's permissions and how they match `MVIEWERSTUDIO_AUTHLIB_ALLOWED_G
 
 `env_file` supplies the container; `--env-file` supplies Compose expressions. To use `PROXY_HTTP_PORT` from `.envs-proxy`, also load that file in the command.
 
-See [Adapt to your environment](/mviewer-galaxy/en/reference/environnement/).
+See [Adapt to your environment](/mviewer-galaxy/en/guides/environnement/).

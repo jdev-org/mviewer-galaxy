@@ -7,6 +7,10 @@ sidebar:
 
 ## Prepare the repository
 
+This guide covers Docker. For a native installation with systemd,
+PostgreSQL/PostGIS and GeoServer, follow the
+[installation guide](/mviewer-galaxy/en/guides/installation-ansible/).
+
 Use Docker with the Compose plugin. The `mviewer/` and `mviewerstudio/` directories provide the applications; Studio is built from `mviewerstudio/docker/Dockerfile`.
 
 Configure the following files:

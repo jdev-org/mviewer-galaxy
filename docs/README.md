@@ -14,9 +14,17 @@ npm run dev
 ```
 
 Ouvrir `http://localhost:4321/mviewer-galaxy/` pour accéder à la page d’accueil. Le bouton
-**Démarrer** mène au guide `/mviewer-galaxy/guides/demarrage/` et à la navigation de
-la documentation. Le site dispose d'une navigation par rubriques,
+**Démarrer avec Docker** mène à `/mviewer-galaxy/guides/demarrage/` et
+**Installer avec Ansible** à `/mviewer-galaxy/guides/installation-ansible/`.
+L'accueil présente aussi GeoServer. Le site dispose d'une navigation par rubriques,
 d'un thème clair/sombre et d'une recherche indexée lors du build.
+La navigation comporte quatre entrées à la racine : **Accueil**, **Guide**,
+**Guide Ansible** et **Référence**.
+Les rubriques **Guide** et **Guide Ansible** possèdent chacune leurs pages
+**Adapter à son environnement** et **Dépannage**, adaptées à leur déploiement.
+La rubrique **Installation** contient des liens vers les étapes du guide,
+avec des ancres communes aux versions française et anglaise.
+Les anciennes URL sous `reference/` redirigent vers les pages Docker du guide.
 
 ## Build et aperçu
 
@@ -42,12 +50,23 @@ sélectionner **Pages → Source → GitHub Actions**.
 
 - `src/content/docs/index.mdx` : accueil.
 - `src/content/docs/guides/` : parcours de démarrage et exploitation.
+- `src/content/docs/guides/installation-ansible.md` : installation native, configuration PostgreSQL et GeoServer, chemins et vérifications.
+- `src/content/docs/guides/ansible/` : adaptation de l'environnement et dépannage Ansible.
 - `src/content/docs/guides/authentification/` : guides séparés par technologie ; Keycloak local et distant sont documentés, GeoNode et geOrchestra Gateway sont à venir.
 - `src/content/docs/reference/` : environnement, dépannage et confidentialité.
 - `astro.config.mjs` : langue, navigation et titre.
 - `src/styles/custom.css` : couleurs.
 
 Chaque page Markdown contient un frontmatter `title` et `description`.
+
+- Expliquer dans un tableau ou une liste les valeurs propres au déploiement : inventaire, variables, fichiers, services et paramètres SQL ou CORS.
+
+- Éviter les explications génériques des commandes du terminal Linux, comme `cd`, `cp`, `chmod`, `sudo` ou `tail`.
+
+- Présenter chaque explication sur une ligne de tableau ou une puce distincte.
+
+- Séparer les consignes par des lignes vides pour éviter les paragraphes qui enchaînent plusieurs instructions.
+
 La navigation est définie dans `astro.config.mjs` ; les guides Keycloak et les
 pages de référence sont générés à partir des dossiers, dans l’ordre de `sidebar.order`.
 Utiliser des valeurs d'exemple pour les secrets dans la documentation.

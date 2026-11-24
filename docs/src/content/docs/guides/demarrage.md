@@ -7,6 +7,10 @@ sidebar:
 
 ## Préparer le dépôt
 
+Ce guide décrit le démarrage avec Docker. Pour une installation native avec
+systemd, PostgreSQL/PostGIS et GeoServer, suivre le guide
+[Installation](/mviewer-galaxy/guides/installation-ansible/).
+
 Utiliser Docker avec le plugin Compose. Les dossiers `mviewer/` et `mviewerstudio/` fournissent les applications ; Studio est construit depuis `mviewerstudio/docker/Dockerfile`.
 
 Configurer les fichiers suivants :

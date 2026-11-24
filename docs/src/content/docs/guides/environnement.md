@@ -1,6 +1,6 @@
 ---
 title: "Adapter à son environnement"
-description: "Comprendre env_file, --env-file et la configuration de chaque service."
+description: "Adapter le déploiement Docker : env_file, --env-file et configuration des services."
 sidebar:
   order: 1
 ---
