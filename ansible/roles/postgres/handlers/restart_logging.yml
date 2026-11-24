@@ -10,7 +10,7 @@
   changed_when: false
   failed_when: postgres_cluster_status.rc not in [0, 3]
 
-- name: Redémarrer uniquement le cluster actif dont les journaux ont changé
+- name: Redémarrer uniquement le cluster actif dont la configuration a changé
   ansible.builtin.command:
     argv:
       - pg_ctlcluster

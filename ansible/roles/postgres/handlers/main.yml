@@ -1,9 +1,20 @@
 ---
-- name: Restart postgresql logging
+- name: Restart postgresql configuration
   ansible.builtin.include_tasks: restart_logging.yml
   loop: >-
     {{ ((postgres_log_config.results | default([]) | selectattr('changed') | map(attribute='item.path') | list)
-        + (postgres_log_links.results | default([]) | selectattr('changed') | map(attribute='item.path') | list)) | unique | list }}
+        + (postgres_log_links.results | default([]) | selectattr('changed') | map(attribute='item.path') | list)
+        + ([postgres_database_result.config_file] if postgres_listen_config is defined and postgres_listen_config.changed else [])) | unique | list }}
   loop_control:
     loop_var: postgres_cluster_config_path
+  when: not ansible_check_mode
+
+- name: Reload postgresql access
+  ansible.builtin.command:
+    argv:
+      - pg_ctlcluster
+      - "{{ postgres_database_result.config_file | dirname | dirname | basename }}"
+      - "{{ postgres_database_result.config_file | dirname | basename }}"
+      - reload
+  changed_when: true
   when: not ansible_check_mode

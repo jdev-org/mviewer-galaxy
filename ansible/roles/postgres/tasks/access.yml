@@ -1,0 +1,40 @@
+---
+- name: Faire écouter PostgreSQL sur toutes les interfaces
+  ansible.builtin.blockinfile:
+    path: "{{ postgres_database_result.config_file }}"
+    marker: '# {mark} MVIEWER GALAXY NETWORK'
+    block: |
+      listen_addresses = '*'
+  register: postgres_listen_config
+  notify: Restart postgresql configuration
+
+- name: Déployer le template pg_hba.conf préparé avant l'installation
+  ansible.builtin.template:
+    src: "{{ postgres_hba_template }}"
+    dest: "{{ postgres_database_result.hba_file }}"
+    owner: postgres
+    group: postgres
+    mode: '0640'
+  notify: Reload postgresql access
+
+- name: Vérifier la syntaxe des fichiers PostgreSQL avant leur application
+  ansible.builtin.command:
+    argv:
+      - runuser
+      - -u
+      - postgres
+      - --
+      - psql
+      - --no-psqlrc
+      - --no-password
+      - --tuples-only
+      - --no-align
+      - --set=ON_ERROR_STOP=1
+      - "--host={{ postgres_socket_dir }}"
+      - "--port={{ postgres_port }}"
+      - --dbname=postgres
+      - --command
+      - "SELECT error FROM pg_hba_file_rules WHERE error IS NOT NULL UNION ALL SELECT error FROM pg_file_settings WHERE error IS NOT NULL;"
+  register: postgres_access_validation
+  changed_when: false
+  failed_when: postgres_access_validation.rc != 0 or postgres_access_validation.stdout | trim | length > 0

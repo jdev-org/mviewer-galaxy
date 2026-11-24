@@ -1,4 +1,10 @@
 ---
+postgres_env_file: "{{ playbook_dir }}/../.env"
+postgres_database: donneessig
+postgres_username: usersig
+postgres_port: 5432
+postgres_socket_dir: /var/run/postgresql
+postgres_hba_template: pg_hba.conf.j2
 postgres_log_dir: "{{ galaxy_logs_dir | default('/srv/logs') }}/postgresql"
 postgres_packages:
   - postgresql

@@ -1,4 +1,13 @@
 ---
+- name: Vérifier le fichier .env PostgreSQL et son mot de passe obligatoire
+  galaxy_postgres:
+    env_content: "{{ lookup('ansible.builtin.file', postgres_env_file, rstrip=false) }}"
+    database: "{{ postgres_database }}"
+    username: "{{ postgres_username }}"
+    validate_only: true
+  register: postgres_configuration
+  no_log: true
+
 - name: Installer PostgreSQL et PostGIS
   ansible.builtin.apt:
     name: "{{ postgres_packages }}"
@@ -37,7 +46,7 @@
   loop_control:
     label: "{{ item.path }}"
   register: postgres_log_config
-  notify: Restart postgresql logging
+  notify: Restart postgresql configuration
 
 - name: Diriger les journaux des clusters vers le répertoire partagé
   ansible.builtin.file:
@@ -52,11 +61,26 @@
   loop_control:
     label: "{{ item.path }}"
   register: postgres_log_links
-  notify: Restart postgresql logging
+  notify: Restart postgresql configuration
 
 - name: Activer et démarrer PostgreSQL
   ansible.builtin.service:
     name: postgresql
     enabled: true
     state: started
+  when: not ansible_check_mode
+
+- name: Créer la base SIG, son propriétaire et activer PostGIS
+  galaxy_postgres:
+    env_content: "{{ lookup('ansible.builtin.file', postgres_env_file, rstrip=false) }}"
+    database: "{{ postgres_database }}"
+    username: "{{ postgres_username }}"
+    port: "{{ postgres_port }}"
+    socket_dir: "{{ postgres_socket_dir }}"
+  register: postgres_database_result
+  no_log: true
+  when: not ansible_check_mode
+
+- name: Configurer les accès réseau PostgreSQL depuis le template préparé
+  ansible.builtin.include_tasks: access.yml
   when: not ansible_check_mode
