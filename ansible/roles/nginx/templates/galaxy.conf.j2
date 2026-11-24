@@ -1,0 +1,68 @@
+# Géré par Ansible.
+server {
+    listen {{ nginx_http_port }};
+    server_name {{ nginx_server_name }};
+    client_max_body_size 20m;
+    autoindex off;
+    access_log {{ nginx_log_dir }}/access.log;
+    error_log {{ nginx_log_dir }}/error.log;
+
+    location = /home {
+        return 302 /home/$is_args$args;
+    }
+
+    location /home/ {
+        alias {{ galaxy_home_dir }}/;
+        index index.html;
+    }
+
+    location ~ /\. {
+        deny all;
+    }
+
+    location = /mviewer {
+        return 302 /mviewer/$is_args$args;
+    }
+
+    location /mviewer/ {
+        alias {{ mviewer_install_dir }}/;
+        index index.html;
+    }
+
+{% for directory in mviewer_shared_directories %}
+    location /mviewer/{{ directory.name }}/ {
+        alias {{ directory.path }}/;
+    }
+
+    location /{{ directory.name }}/ {
+        alias {{ directory.path }}/;
+    }
+
+{% endfor %}
+    location = /{{ mviewerstudio_url_prefix }}/config.json {
+        alias {{ mviewerstudio_front_config }};
+        default_type application/json;
+    }
+
+    location = /{{ mviewerstudio_url_prefix }} {
+        return 302 /{{ mviewerstudio_url_prefix }}/$is_args$args;
+    }
+
+    location /{{ mviewerstudio_url_prefix }}/ {
+        proxy_set_header Host $http_host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $remote_addr;
+        proxy_set_header X-Forwarded-Proto {{ galaxy_public_scheme }};
+        proxy_set_header X-Forwarded-Host $http_host;
+        proxy_redirect "~^(.*[?&]post_logout_redirect_uri=)[^&]*(.*)$" $1{{ galaxy_public_scheme }}://$http_host/mviewer/$2;
+        proxy_pass http://127.0.0.1:{{ mviewerstudio_port }};
+    }
+
+    location = / {
+        return 302 /home/;
+    }
+
+    location / {
+        return 404;
+    }
+}

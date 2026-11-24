@@ -1,0 +1,62 @@
+---
+- name: Installer PostgreSQL et PostGIS
+  ansible.builtin.apt:
+    name: "{{ postgres_packages }}"
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Configurer les journaux et leur rotation pour PostgreSQL
+  ansible.builtin.include_role:
+    name: logging
+    apply:
+      tags: [postgres]
+  vars:
+    logging_application: postgresql
+    logging_directory: "{{ postgres_log_dir }}"
+    logging_owner: postgres
+    logging_group: postgres
+    logging_config_name: postgresql-common
+
+- name: Rechercher les configurations des clusters PostgreSQL
+  ansible.builtin.find:
+    paths: /etc/postgresql
+    patterns: postgresql.conf
+    recurse: true
+    file_type: file
+  register: postgres_cluster_configs
+
+- name: Diriger la sortie des clusters vers leur journal géré par Debian
+  ansible.builtin.blockinfile:
+    path: "{{ item.path }}"
+    marker: '# {mark} MVIEWER GALAXY LOGGING'
+    block: |
+      logging_collector = off
+      log_destination = 'stderr'
+  loop: "{{ postgres_cluster_configs.files }}"
+  loop_control:
+    label: "{{ item.path }}"
+  register: postgres_log_config
+  notify: Restart postgresql logging
+
+- name: Diriger les journaux des clusters vers le répertoire partagé
+  ansible.builtin.file:
+    src: "{{ postgres_log_dir }}/postgresql-{{ item.path | dirname | dirname | basename }}-{{ item.path | dirname | basename }}.log"
+    dest: "{{ item.path | dirname }}/log"
+    state: link
+    force: true
+    follow: false
+    owner: postgres
+    group: postgres
+  loop: "{{ postgres_cluster_configs.files }}"
+  loop_control:
+    label: "{{ item.path }}"
+  register: postgres_log_links
+  notify: Restart postgresql logging
+
+- name: Activer et démarrer PostgreSQL
+  ansible.builtin.service:
+    name: postgresql
+    enabled: true
+    state: started
+  when: not ansible_check_mode

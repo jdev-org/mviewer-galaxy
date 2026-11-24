@@ -1,0 +1,33 @@
+---
+- name: Vérifier l'emplacement de sauvegarde du dossier
+  ansible.builtin.stat:
+    path: "{{ shared_entry.item.backup }}"
+  register: mviewer_directory_backup
+
+- name: Éviter d'écraser une sauvegarde existante
+  ansible.builtin.assert:
+    that:
+      - not mviewer_directory_backup.stat.exists
+    fail_msg: "La sauvegarde {{ shared_entry.item.backup }} existe déjà. La déplacer avant de remplacer le dossier."
+
+- name: Sauvegarder le dossier hors du dépôt sans supprimer son contenu
+  ansible.builtin.command:
+    argv: [mv, --, "{{ mviewer_install_dir }}/{{ shared_entry.item.name }}", "{{ shared_entry.item.backup }}"]
+  changed_when: true
+
+- name: Détecter les fichiers suivis dans ce dossier
+  ansible.builtin.command:
+    argv: [git, ls-files, --, "{{ shared_entry.item.name }}"]
+    chdir: "{{ mviewer_install_dir }}"
+  register: mviewer_directory_tracked_files
+  changed_when: false
+  when: not ansible_check_mode
+
+- name: Restaurer les fichiers suivis avant leur exclusion Git
+  ansible.builtin.command:
+    argv: [git, restore, --worktree, --, "{{ shared_entry.item.name }}"]
+    chdir: "{{ mviewer_install_dir }}"
+  changed_when: true
+  when:
+    - not ansible_check_mode
+    - mviewer_directory_tracked_files.stdout | length > 0

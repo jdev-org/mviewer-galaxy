@@ -1,0 +1,25 @@
+[Unit]
+Description=Mviewer Studio (Gunicorn)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User={{ galaxy_user }}
+Group={{ galaxy_group }}
+WorkingDirectory={{ mviewerstudio_install_dir }}
+EnvironmentFile=/etc/mviewerstudio/environment
+ExecStart={{ mviewerstudio_venv }}/bin/gunicorn --no-control-socket --workers 1 --bind 127.0.0.1:{{ mviewerstudio_port }} --access-logfile {{ mviewerstudio_log_dir }}/access.log --error-logfile {{ mviewerstudio_log_dir }}/error.log src.app:app
+StandardOutput=append:{{ mviewerstudio_log_dir }}/application.log
+StandardError=inherit
+Restart=on-failure
+RestartSec=5
+UMask=0022
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths={{ galaxy_data_dir }} {{ mviewer_apps_dir }} {{ mviewer_store_dir }} {{ mviewer_public_dir }} {{ mviewerstudio_log_dir }}
+
+[Install]
+WantedBy=multi-user.target

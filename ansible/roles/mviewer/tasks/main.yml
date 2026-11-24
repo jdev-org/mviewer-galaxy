@@ -1,0 +1,89 @@
+---
+- name: Vérifier si le dépôt Mviewer est déjà installé
+  ansible.builtin.stat:
+    path: "{{ mviewer_install_dir }}/.git"
+  register: mviewer_git_directory
+
+- name: Installer les sources de Mviewer si absentes
+  ansible.builtin.git:
+    repo: "{{ mviewer_repository }}"
+    dest: "{{ mviewer_install_dir }}"
+    version: "{{ mviewer_version }}"
+    force: false
+  when: not mviewer_git_directory.stat.exists
+
+- name: Vérifier les noms des répertoires partagés
+  ansible.builtin.assert:
+    that:
+      - item.name is match('^[a-zA-Z0-9_-]+$')
+      - item.name not in ['index', 'js', 'css', 'lib', 'img', 'demo', 'addons', 'home', mviewerstudio_url_prefix]
+      - item.path is match('^/')
+      - item.path | normpath != (mviewer_install_dir ~ '/' ~ item.name) | normpath
+  loop: "{{ mviewer_shared_directories }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: Vérifier que les noms partagés sont distincts
+  ansible.builtin.assert:
+    that:
+      - mviewer_shared_directories | map(attribute='name') | unique | length == mviewer_shared_directories | length
+
+- name: Examiner les dossiers partagés sans suivre les liens
+  ansible.builtin.stat:
+    path: "{{ mviewer_install_dir }}/{{ item.name }}"
+    follow: false
+  loop: "{{ mviewer_shared_directories }}"
+  loop_control:
+    label: "{{ item.name }}"
+  register: mviewer_shared_paths
+
+- name: Préserver les dossiers existants avant leur remplacement
+  ansible.builtin.include_tasks: preserve_directory.yml
+  loop: "{{ mviewer_shared_paths.results }}"
+  loop_control:
+    loop_var: shared_entry
+    label: "{{ shared_entry.item.name }}"
+  when: shared_entry.stat.isdir | default(false)
+
+- name: Lire les exclusions de la copie de travail Git
+  ansible.builtin.command:
+    argv: [git, sparse-checkout, list]
+    chdir: "{{ mviewer_install_dir }}"
+  register: mviewer_sparse_checkout
+  changed_when: false
+  failed_when: mviewer_sparse_checkout.rc not in [0, 128]
+  when: not ansible_check_mode
+
+- name: Définir les exclusions des données partagées
+  ansible.builtin.set_fact:
+    mviewer_sparse_patterns: "{{ (['/*'] + (mviewer_sparse_checkout.stdout_lines | default([])) + (mviewer_shared_directories | map(attribute='name') | map('regex_replace', '^', '!/') | map('regex_replace', '$', '/') | list)) | unique | list }}"
+
+- name: Exclure les données partagées de la copie de travail Git
+  ansible.builtin.command:
+    argv: "{{ ['git', 'sparse-checkout', 'set', '--no-cone'] + mviewer_sparse_patterns }}"
+    chdir: "{{ mviewer_install_dir }}"
+  when:
+    - not ansible_check_mode
+    - mviewer_sparse_checkout.stdout_lines != mviewer_sparse_patterns or mviewer_shared_paths.results | selectattr('stat.isdir', 'defined') | selectattr('stat.isdir') | list | length > 0
+  changed_when: true
+
+- name: Lier les répertoires partagés dans Mviewer
+  ansible.builtin.file:
+    src: "{{ item.item.path }}"
+    dest: "{{ mviewer_install_dir }}/{{ item.item.name }}"
+    state: link
+    follow: false
+    owner: root
+    group: root
+  loop: "{{ mviewer_shared_paths.results }}"
+  loop_control:
+    label: "{{ item.item.name }}"
+  when: not ansible_check_mode or not (item.stat.isdir | default(false))
+
+- name: Mettre à jour les sources de Mviewer avec les données partagées exclues
+  ansible.builtin.git:
+    repo: "{{ mviewer_repository }}"
+    dest: "{{ mviewer_install_dir }}"
+    version: "{{ mviewer_version }}"
+    force: false
+  when: mviewer_git_directory.stat.exists

@@ -1,0 +1,24 @@
+---
+geoserver_version: '3.0.2'
+geoserver_archive_url: "https://downloads.sourceforge.net/project/geoserver/GeoServer/{{ geoserver_version }}/geoserver-{{ geoserver_version }}-bin.zip"
+geoserver_archive_checksum: sha256:66520d9debefb7689b96c8b9b133430f0ebdb28e74ce58b2355d877b8e9a01bc
+geoserver_java_package: openjdk-21-jre-headless
+geoserver_packages:
+  - "{{ geoserver_java_package }}"
+  - ca-certificates
+  - unzip
+geoserver_user: geoserver
+geoserver_group: geoserver
+geoserver_install_dir: "/opt/geoserver/{{ geoserver_version }}"
+geoserver_data_dir: "{{ galaxy_shared_data_dir | default('/srv/data') }}/geoserver/datadir"
+geoserver_log_dir: "{{ galaxy_logs_dir | default('/srv/logs') }}/geoserver"
+geoserver_work_dir: /var/cache/geoserver
+geoserver_download_dir: /var/cache/geoserver-downloads
+geoserver_bind_address: 127.0.0.1
+geoserver_port: 8080
+geoserver_java_options:
+  - -Xms256m
+  - -Xmx1024m
+  - -Djava.awt.headless=true
+  # Mitigation recommandée par GeoServer pour CVE-2026-114938.
+  - -XX:-UseBASE64Intrinsics

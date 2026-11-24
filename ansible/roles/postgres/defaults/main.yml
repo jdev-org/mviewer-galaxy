@@ -1,0 +1,6 @@
+---
+postgres_log_dir: "{{ galaxy_logs_dir | default('/srv/logs') }}/postgresql"
+postgres_packages:
+  - postgresql
+  - postgresql-postgis
+  - postgis

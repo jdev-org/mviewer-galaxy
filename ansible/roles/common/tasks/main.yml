@@ -1,0 +1,83 @@
+---
+- name: Vérifier que le mode simulation dispose déjà de Python
+  ansible.builtin.assert:
+    that:
+      - mviewerstudio_python_version.stdout | trim != 'absent'
+    fail_msg: Python est installable mais absent. Exécuter sans --check pour l'installer, ou utiliser --tags check pour vérifier uniquement les prérequis.
+  when: ansible_check_mode
+
+- name: Installer Python si absent pour les modules Ansible
+  ansible.builtin.raw: |
+    if [ ! -x /usr/bin/python3 ]; then
+      DEBIAN_FRONTEND=noninteractive apt-get install --yes python3
+      result=$?
+      if [ "$result" -ne 0 ]; then exit "$result"; fi
+      printf '\nGALAXY_PYTHON_INSTALLED\n'
+    fi
+  register: galaxy_python_bootstrap
+  changed_when: "'GALAXY_PYTHON_INSTALLED' in galaxy_python_bootstrap.stdout"
+  when: not ansible_check_mode
+
+- name: Collecter les informations du système après préparation de Python
+  ansible.builtin.setup:
+
+- name: Installer les prérequis système
+  ansible.builtin.apt:
+    name: "{{ galaxy_system_packages }}"
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Vérifier les dépôts après installation de Git si nécessaire
+  ansible.builtin.include_role:
+    name: check
+    tasks_from: git
+  when:
+    - not ansible_check_mode
+    - galaxy_check_git_available.rc | default(1) != 0
+
+- name: Créer le groupe de service
+  ansible.builtin.group:
+    name: "{{ galaxy_group }}"
+    system: true
+
+- name: Créer le compte de service
+  ansible.builtin.user:
+    name: "{{ galaxy_user }}"
+    group: "{{ galaxy_group }}"
+    home: "{{ galaxy_data_dir }}"
+    create_home: false
+    shell: /usr/sbin/nologin
+    system: true
+
+- name: Créer les répertoires racines du site et des données partagées
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+  loop:
+    - "{{ galaxy_install_dir }}"
+    - "{{ galaxy_shared_data_dir }}"
+
+- name: Créer les répertoires de données partagés
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ galaxy_user }}"
+    group: "{{ galaxy_group }}"
+    mode: '0755'
+  loop:
+    - "{{ galaxy_data_dir }}"
+    - "{{ mviewer_apps_dir }}"
+    - "{{ mviewer_store_dir }}"
+    - "{{ mviewer_public_dir }}"
+
+- name: Créer le répertoire privé des sessions
+  ansible.builtin.file:
+    path: "{{ galaxy_data_dir }}/sessions"
+    state: directory
+    owner: "{{ galaxy_user }}"
+    group: "{{ galaxy_group }}"
+    mode: '0700'

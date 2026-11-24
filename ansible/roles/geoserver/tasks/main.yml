@@ -1,0 +1,164 @@
+---
+- name: Vérifier les paramètres GeoServer
+  ansible.builtin.assert:
+    that:
+      - geoserver_version is match('^[0-9]+\.[0-9]+\.[0-9]+$')
+      - geoserver_port | int > 1023
+      - geoserver_port | int < 65536
+      - geoserver_port | int != nginx_http_port | default(80) | int
+      - geoserver_port | int != mviewerstudio_port | default(5007) | int
+      - geoserver_bind_address is match('^[a-zA-Z0-9_.:-]+$')
+    fail_msg: Vérifier la version, l'adresse et le port de GeoServer.
+
+- name: Installer Java 21 et les outils de déploiement GeoServer
+  ansible.builtin.apt:
+    name: "{{ geoserver_packages }}"
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Créer le groupe GeoServer
+  ansible.builtin.group:
+    name: "{{ geoserver_group }}"
+    system: true
+
+- name: Créer le compte de service GeoServer
+  ansible.builtin.user:
+    name: "{{ geoserver_user }}"
+    group: "{{ geoserver_group }}"
+    home: "{{ geoserver_data_dir }}"
+    create_home: false
+    shell: /usr/sbin/nologin
+    system: true
+
+- name: Configurer les journaux et leur rotation pour GeoServer et Jetty
+  ansible.builtin.include_role:
+    name: logging
+    apply:
+      tags: [geoserver]
+  vars:
+    logging_application: geoserver
+    logging_directory: "{{ geoserver_log_dir }}"
+    logging_owner: "{{ geoserver_user }}"
+    logging_group: "{{ geoserver_group }}"
+    logging_files: [geoserver.log, jetty.log]
+
+- name: Créer les répertoires du logiciel et des téléchargements
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+  loop:
+    - "{{ geoserver_install_dir }}"
+    - "{{ geoserver_download_dir }}"
+
+- name: Créer les répertoires persistants de GeoServer
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ geoserver_user }}"
+    group: "{{ geoserver_group }}"
+    mode: '0750'
+  loop:
+    - "{{ geoserver_data_dir }}"
+    - "{{ geoserver_log_dir }}"
+    - "{{ geoserver_work_dir }}"
+
+# Ces étapes dépendent des fichiers installés : elles sont ignorées en simulation.
+- name: Déployer et configurer GeoServer avec son Jetty embarqué
+  when: not ansible_check_mode
+  block:
+    - name: Localiser le binaire Java du paquet demandé
+      ansible.builtin.command:
+        argv: [dpkg-query, --listfiles, "{{ geoserver_java_package }}"]
+      register: geoserver_java_files
+      changed_when: false
+
+    - name: Retenir le binaire Java du service
+      ansible.builtin.set_fact:
+        geoserver_java_binary: "{{ geoserver_java_files.stdout_lines | select('match', '^/.*/bin/java$') | first }}"
+
+    - name: Lire la version de Java utilisée par GeoServer
+      ansible.builtin.command:
+        argv: ["{{ geoserver_java_binary }}", -version]
+      register: geoserver_java_version
+      changed_when: false
+
+    - name: Confirmer l'utilisation de Java 21
+      ansible.builtin.assert:
+        that:
+          - (geoserver_java_version.stdout ~ geoserver_java_version.stderr) is search('version "21[.\"]')
+        fail_msg: Le paquet geoserver_java_package doit fournir Java 21.
+
+    - name: Détecter la distribution GeoServer déjà installée
+      ansible.builtin.stat:
+        path: "{{ geoserver_install_dir }}/start.jar"
+      register: geoserver_existing_distribution
+
+    - name: Télécharger la distribution officielle GeoServer avec Jetty
+      ansible.builtin.get_url:
+        url: "{{ geoserver_archive_url }}"
+        dest: "{{ geoserver_download_dir }}/geoserver-{{ geoserver_version }}-bin.zip"
+        checksum: "{{ geoserver_archive_checksum | default(omit, true) }}"
+        owner: root
+        group: root
+        mode: '0644'
+        timeout: 120
+      when: not geoserver_existing_distribution.stat.exists
+
+    - name: Extraire la distribution GeoServer
+      ansible.builtin.unarchive:
+        src: "{{ geoserver_download_dir }}/geoserver-{{ geoserver_version }}-bin.zip"
+        dest: "{{ geoserver_install_dir }}"
+        remote_src: true
+        creates: "{{ geoserver_install_dir }}/start.jar"
+        owner: root
+        group: root
+      when: not geoserver_existing_distribution.stat.exists
+      notify: Restart geoserver
+
+    - name: Détecter des données GeoServer existantes
+      ansible.builtin.find:
+        paths: "{{ geoserver_data_dir }}"
+        file_type: any
+        hidden: true
+        recurse: false
+      register: geoserver_existing_data
+
+    - name: Initialiser les données uniquement à la première installation
+      ansible.builtin.copy:
+        src: "{{ geoserver_install_dir }}/data_dir/"
+        dest: "{{ geoserver_data_dir }}/"
+        remote_src: true
+        owner: "{{ geoserver_user }}"
+        group: "{{ geoserver_group }}"
+        mode: preserve
+      when: geoserver_existing_data.matched == 0
+      notify: Restart geoserver
+
+    - name: Restreindre l'accès au répertoire des données après initialisation
+      ansible.builtin.file:
+        path: "{{ geoserver_data_dir }}"
+        state: directory
+        owner: "{{ geoserver_user }}"
+        group: "{{ geoserver_group }}"
+        mode: '0750'
+
+    - name: Installer le service systemd GeoServer
+      ansible.builtin.template:
+        src: geoserver.service.j2
+        dest: /etc/systemd/system/geoserver.service
+        owner: root
+        group: root
+        mode: '0644'
+      register: geoserver_unit
+      notify: Restart geoserver
+
+    - name: Activer et démarrer GeoServer
+      ansible.builtin.systemd_service:
+        name: geoserver
+        enabled: true
+        state: started
+        daemon_reload: "{{ geoserver_unit.changed }}"

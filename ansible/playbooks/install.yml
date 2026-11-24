@@ -1,0 +1,45 @@
+---
+- name: Installer Mviewer Galaxy
+  hosts: galaxy
+  become: true
+  gather_facts: false
+  vars_files:
+    - ../group_vars/all.yml
+  pre_tasks:
+    - name: Vérifier les paramètres du déploiement
+      ansible.builtin.assert:
+        that:
+          - mviewerstudio_secret_key | length >= 32
+          - mviewerstudio_auth_mode in ['public', 'authlib']
+          - mviewerstudio_url_prefix is match('^[a-zA-Z0-9_-]+$')
+          - mviewerstudio_url_prefix not in ['mviewer', 'apps', 'home']
+          - mviewerstudio_port | int > 1023
+          - mviewerstudio_port | int < 65536
+          - nginx_http_port | int > 0
+          - nginx_http_port | int < 65536
+          - nginx_http_port | int != mviewerstudio_port | int
+          - nginx_server_name is match('^[a-zA-Z0-9_.-]+$')
+          - galaxy_public_scheme in ['http', 'https']
+        fail_msg: Renseigner la clé de session et vérifier les variables (voir ansible/README.md).
+      no_log: true
+
+    - name: Vérifier les paramètres OIDC lorsque l'authentification est activée
+      ansible.builtin.assert:
+        that:
+          - mviewerstudio_oidc_client_id | default('') | trim | length > 0
+          - mviewerstudio_oidc_client_secret | default('') | trim | length > 0
+          - mviewerstudio_oidc_issuer | default('') is match('^https?://[^ ]+$')
+        fail_msg: Renseigner les paramètres OIDC pour le mode authlib (voir ansible/README.md).
+      when: mviewerstudio_auth_mode == 'authlib'
+      no_log: true
+  roles:
+    - role: check
+      tags: [check]
+    - common
+    - role: postgres
+      tags: [postgres]
+    - role: geoserver
+      tags: [geoserver]
+    - mviewer
+    - mviewerstudio
+    - nginx

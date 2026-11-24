@@ -1,0 +1,27 @@
+[Unit]
+Description=GeoServer (Jetty, Java 21)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User={{ geoserver_user }}
+Group={{ geoserver_group }}
+WorkingDirectory={{ geoserver_install_dir }}
+Environment="GEOSERVER_DATA_DIR={{ geoserver_data_dir }}"
+Environment="GEOSERVER_LOG_LOCATION={{ geoserver_log_dir }}/geoserver.log"
+StandardOutput=append:{{ geoserver_log_dir }}/jetty.log
+StandardError=inherit
+ExecStart={{ geoserver_java_binary }} {{ geoserver_java_options | join(' ') }} -DGEOSERVER_DATA_DIR={{ geoserver_data_dir }} -DGEOSERVER_LOG_LOCATION={{ geoserver_log_dir }}/geoserver.log -Djava.io.tmpdir={{ geoserver_work_dir }} -jar {{ geoserver_install_dir }}/start.jar jetty.http.host={{ geoserver_bind_address }} jetty.http.port={{ geoserver_port }}
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=60
+UMask=0027
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths={{ geoserver_data_dir }} {{ geoserver_log_dir }} {{ geoserver_work_dir }}
+
+[Install]
+WantedBy=multi-user.target

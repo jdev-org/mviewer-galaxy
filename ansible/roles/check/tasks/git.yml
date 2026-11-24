@@ -1,0 +1,8 @@
+---
+- name: Vérifier l'accès aux dépôts Git depuis la cible
+  ansible.builtin.raw: >-
+    GIT_TERMINAL_PROMPT=0 timeout 30 git ls-remote --exit-code
+    {{ item | quote }} HEAD
+  loop: "{{ [mviewer_repository, mviewerstudio_repository] | unique }}"
+  changed_when: false
+  check_mode: false

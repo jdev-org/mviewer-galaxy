@@ -1,0 +1,74 @@
+---
+- name: Configurer les journaux et leur rotation pour nginx
+  ansible.builtin.include_role:
+    name: logging
+  vars:
+    logging_application: nginx
+    logging_directory: "{{ nginx_log_dir }}"
+    logging_owner: root
+    logging_group: adm
+    logging_config_name: nginx
+    logging_files: [access.log, error.log]
+
+- name: Centraliser les journaux globaux de nginx
+  ansible.builtin.lineinfile:
+    path: /etc/nginx/nginx.conf
+    regexp: "^\\s*{{ item.directive }}\\s+"
+    line: "{{ item.line }}"
+    backrefs: true
+  loop:
+    - directive: error_log
+      line: "error_log {{ nginx_log_dir }}/error.log;"
+    - directive: access_log
+      line: "\taccess_log {{ nginx_log_dir }}/access.log;"
+  notify: Validate and reload nginx
+
+- name: Créer le répertoire de l'accueil
+  ansible.builtin.file:
+    path: "{{ galaxy_home_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Installer la page d'accueil
+  ansible.builtin.template:
+    src: home.html.j2
+    dest: "{{ galaxy_home_dir }}/index.html"
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Installer le site nginx
+  ansible.builtin.template:
+    src: galaxy.conf.j2
+    dest: /etc/nginx/sites-available/mviewer-galaxy
+    owner: root
+    group: root
+    mode: '0644'
+  notify: Validate and reload nginx
+
+- name: Activer le site nginx
+  ansible.builtin.file:
+    src: /etc/nginx/sites-available/mviewer-galaxy
+    dest: /etc/nginx/sites-enabled/mviewer-galaxy
+    state: link
+  notify: Validate and reload nginx
+
+- name: Désactiver le site nginx par défaut
+  ansible.builtin.file:
+    path: /etc/nginx/sites-enabled/default
+    state: absent
+  notify: Validate and reload nginx
+
+- name: Valider la configuration avant le démarrage
+  ansible.builtin.command: /usr/sbin/nginx -t
+  changed_when: false
+  when: not ansible_check_mode
+
+- name: Activer et démarrer nginx
+  ansible.builtin.service:
+    name: nginx
+    enabled: true
+    state: started
+  when: not ansible_check_mode

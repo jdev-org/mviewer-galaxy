@@ -1,0 +1,119 @@
+---
+- name: Configurer les journaux et leur rotation pour Studio
+  ansible.builtin.include_role:
+    name: logging
+  vars:
+    logging_application: mviewerstudio
+    logging_directory: "{{ mviewerstudio_log_dir }}"
+    logging_owner: "{{ galaxy_user }}"
+    logging_group: "{{ galaxy_group }}"
+    logging_files: [access.log, error.log, application.log]
+
+- name: Créer le répertoire parent de Mviewer Studio
+  ansible.builtin.file:
+    path: "{{ mviewerstudio_install_dir | dirname }}"
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Installer les sources de Mviewer Studio
+  ansible.builtin.git:
+    repo: "{{ mviewerstudio_repository }}"
+    dest: "{{ mviewerstudio_install_dir }}"
+    version: "{{ mviewerstudio_version }}"
+    force: false
+  register: mviewerstudio_sources
+  notify: Restart mviewerstudio
+
+- name: Installer les dépendances Python existantes de Studio
+  ansible.builtin.pip:
+    requirements: "{{ mviewerstudio_install_dir }}/install/requirements.txt"
+    virtualenv: "{{ mviewerstudio_venv }}"
+    virtualenv_command: /usr/bin/python3 -m venv
+  when: not ansible_check_mode
+  notify: Restart mviewerstudio
+
+- name: Vérifier si le paquet Python de Studio est déjà installé
+  ansible.builtin.command:
+    argv:
+      - "{{ mviewerstudio_venv }}/bin/python"
+      - -m
+      - pip
+      - show
+      - mviewerstudio_backend
+  register: mviewerstudio_python_package
+  changed_when: false
+  failed_when: mviewerstudio_python_package.rc not in [0, 1]
+  when: not ansible_check_mode
+
+- name: Installer le paquet Python de Studio
+  ansible.builtin.pip:
+    name: "{{ mviewerstudio_install_dir }}/src"
+    editable: true
+    virtualenv: "{{ mviewerstudio_venv }}"
+  when:
+    - not ansible_check_mode
+    - mviewerstudio_sources.changed or mviewerstudio_python_package.rc | default(1) != 0
+  notify: Restart mviewerstudio
+
+- name: Lire la configuration front fournie par Studio
+  ansible.builtin.slurp:
+    src: "{{ mviewerstudio_install_dir }}/src/static/config.json"
+  register: mviewerstudio_front_source
+  when: not ansible_check_mode
+
+- name: Adapter les chemins du front sans modifier les sources Git de Studio
+  ansible.builtin.copy:
+    content: >-
+      {{ (mviewerstudio_front_source.content | b64decode | from_json)
+         | combine({'app_conf': {
+             'mviewer_instance': '/mviewer/',
+             'publish_url': '/mviewer/?config=' ~ mviewer_public_name ~ '/{{config}}.xml',
+             'conf_path_from_mviewer': mviewer_store_name ~ '/',
+             'mviewer_short_url': {
+               'apps_folder': mviewer_store_name,
+               'public_folder': mviewer_public_name
+             }
+           }}, recursive=true) | to_nice_json }}
+    dest: "{{ mviewerstudio_front_config }}"
+    owner: root
+    group: root
+    mode: '0644'
+  when: not ansible_check_mode
+
+- name: Créer le répertoire de configuration de Studio
+  ansible.builtin.file:
+    path: /etc/mviewerstudio
+    state: directory
+    owner: root
+    group: root
+    mode: '0700'
+
+- name: Configurer l'environnement de Studio
+  ansible.builtin.template:
+    src: mviewerstudio.env.j2
+    dest: /etc/mviewerstudio/environment
+    owner: root
+    group: root
+    mode: '0600'
+  no_log: true
+  notify: Restart mviewerstudio
+
+- name: Installer l'unité systemd de Studio
+  ansible.builtin.template:
+    src: mviewerstudio.service.j2
+    dest: /etc/systemd/system/mviewerstudio.service
+    owner: root
+    group: root
+    mode: '0644'
+  register: mviewerstudio_unit
+  notify: Restart mviewerstudio
+
+- name: Activer et démarrer Studio
+  ansible.builtin.systemd_service:
+    name: mviewerstudio
+    enabled: true
+    state: started
+    daemon_reload: "{{ mviewerstudio_unit.changed }}"
+  when: not ansible_check_mode

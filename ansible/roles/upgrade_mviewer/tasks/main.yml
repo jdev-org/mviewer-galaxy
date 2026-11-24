@@ -1,0 +1,95 @@
+---
+- name: Vérifier les liens des répertoires partagés avant la mise à jour
+  ansible.builtin.stat:
+    path: "{{ mviewer_install_dir }}/{{ item.name }}"
+    follow: false
+  loop: "{{ mviewer_shared_directories }}"
+  loop_control:
+    label: "{{ item.name }}"
+  register: mviewer_upgrade_links
+
+- name: Exiger les liens symboliques installés pour les données partagées
+  ansible.builtin.assert:
+    that:
+      - item.stat.islnk | default(false)
+    fail_msg: "{{ mviewer_install_dir }}/{{ item.item.name }} doit être un lien symbolique. Exécuter install.yml avant la mise à jour."
+  loop: "{{ mviewer_upgrade_links.results }}"
+  loop_control:
+    label: "{{ item.item.name }}"
+
+- name: Prévoir le déploiement de la version Mviewer demandée
+  ansible.builtin.git:
+    repo: "{{ mviewer_repository }}"
+    dest: "{{ mviewer_install_dir }}"
+    version: "{{ mviewer_version }}"
+    force: false
+  check_mode: true
+  register: mviewer_upgrade_plan
+  changed_when: false
+
+- name: Lire la branche actuellement extraite
+  ansible.builtin.command:
+    argv: [git, symbolic-ref, --quiet, --short, HEAD]
+    chdir: "{{ mviewer_install_dir }}"
+  register: mviewer_upgrade_current_branch
+  changed_when: false
+  failed_when: mviewer_upgrade_current_branch.rc not in [0, 1]
+  check_mode: false
+
+- name: Déterminer si la version demandée est une branche distante
+  ansible.builtin.command:
+    argv:
+      - git
+      - ls-remote
+      - --heads
+      - "{{ mviewer_repository }}"
+      - "refs/heads/{{ mviewer_version }}"
+    chdir: "{{ mviewer_install_dir }}"
+  register: mviewer_upgrade_target_branch
+  changed_when: false
+  check_mode: false
+
+- name: Déterminer si le type de checkout doit changer
+  ansible.builtin.set_fact:
+    mviewer_upgrade_switch_ref: >-
+      {{ (mviewer_upgrade_target_branch.stdout | trim | length > 0
+          and (mviewer_upgrade_current_branch.rc != 0
+               or mviewer_upgrade_current_branch.stdout | trim != mviewer_version))
+         or (mviewer_upgrade_target_branch.stdout | trim | length == 0
+             and mviewer_upgrade_current_branch.rc == 0) }}
+
+- name: Mettre à jour Mviewer en préservant les liens partagés
+  when: >-
+    mviewer_upgrade_plan.before != mviewer_upgrade_plan.after
+    or mviewer_upgrade_plan.remote_url_changed | default(false)
+    or mviewer_upgrade_switch_ref
+  block:
+    - name: Retirer temporairement les liens symboliques partagés
+      ansible.builtin.file:
+        path: "{{ mviewer_install_dir }}/{{ item.item.name }}"
+        state: absent
+      loop: "{{ mviewer_upgrade_links.results }}"
+      loop_control:
+        label: "{{ item.item.name }}"
+
+    - name: Récupérer et déployer la version Mviewer demandée
+      ansible.builtin.git:
+        repo: "{{ mviewer_repository }}"
+        dest: "{{ mviewer_install_dir }}"
+        version: "{{ mviewer_version }}"
+        force: false
+      register: mviewer_upgrade_result
+      changed_when: mviewer_upgrade_result.changed or mviewer_upgrade_switch_ref
+
+  always:
+    - name: Remettre les liens symboliques même si le déploiement échoue
+      ansible.builtin.file:
+        src: "{{ item.stat.lnk_target }}"
+        dest: "{{ mviewer_install_dir }}/{{ item.item.name }}"
+        state: link
+        follow: false
+        owner: root
+        group: root
+      loop: "{{ mviewer_upgrade_links.results }}"
+      loop_control:
+        label: "{{ item.item.name }}"

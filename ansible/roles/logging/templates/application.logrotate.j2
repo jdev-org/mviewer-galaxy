@@ -1,0 +1,11 @@
+# Géré par Ansible.
+"{{ logging_directory }}/*.log" {
+    daily
+    rotate {{ logging_rotate }}
+    missingok
+    notifempty
+    compress
+    delaycompress
+    copytruncate
+    su {{ logging_owner }} {{ logging_group }}
+}

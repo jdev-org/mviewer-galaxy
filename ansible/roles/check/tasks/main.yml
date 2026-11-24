@@ -1,0 +1,113 @@
+---
+# raw permet ces vérifications sans Python sur la cible.
+- name: Vérifier les droits root ou sudo du compte de connexion
+  ansible.builtin.raw: id -u
+  become: true
+  register: galaxy_check_uid
+  changed_when: false
+  check_mode: false
+
+- name: Confirmer les droits administrateur effectifs
+  ansible.builtin.assert:
+    that:
+      - galaxy_check_uid.stdout | trim == '0'
+    fail_msg: Le compte SSH doit être root ou pouvoir devenir root via sudo (utiliser --ask-become-pass si nécessaire).
+
+- name: Vérifier le système cible sans Python
+  ansible.builtin.raw: |
+    set -eu
+    . /etc/os-release
+    case "$ID" in
+      debian) minimum=12 ;;
+      ubuntu) minimum=22.04 ;;
+      *) printf 'Système non pris en charge : %s\n' "$ID" >&2; exit 1 ;;
+    esac
+    if ! dpkg --compare-versions "$VERSION_ID" ge "$minimum"; then
+      printf '%s >= %s est nécessaire (version détectée : %s).\n' "$ID" "$minimum" "$VERSION_ID" >&2
+      exit 1
+    fi
+    if [ ! -d /run/systemd/system ]; then
+      printf 'systemd doit être actif sur la cible.\n' >&2
+      exit 1
+    fi
+  changed_when: false
+  check_mode: false
+
+- name: Lire la version de Python si déjà installé
+  ansible.builtin.raw: |
+    if [ -x /usr/bin/python3 ]; then
+      /usr/bin/python3 -c 'import platform; print(platform.python_version())'
+    else
+      printf 'absent\n'
+    fi
+  register: mviewerstudio_python_version
+  changed_when: false
+  check_mode: false
+
+- name: Vérifier la version de Python déjà installé
+  ansible.builtin.assert:
+    that:
+      - mviewerstudio_python_version.stdout | trim is version('3.11', '>=')
+    fail_msg: "Python >= 3.11 est nécessaire. Version détectée : {{ mviewerstudio_python_version.stdout | trim }}."
+  when: mviewerstudio_python_version.stdout | trim != 'absent'
+
+- name: Vérifier APT et les téléchargements sans modifier les caches du système
+  ansible.builtin.raw: |
+    set -eu
+    galaxy_check_tmp=$(mktemp -d /tmp/mviewer-galaxy-check.XXXXXX)
+    trap 'rm -rf -- "$galaxy_check_tmp"' EXIT
+    trap 'exit 1' HUP INT TERM
+    chmod 0755 "$galaxy_check_tmp"
+    mkdir -p "$galaxy_check_tmp/lists/partial" "$galaxy_check_tmp/archives/partial" "$galaxy_check_tmp/log"
+    cat > "$galaxy_check_tmp/apt.conf" <<EOF
+    Dir::State::lists "$galaxy_check_tmp/lists";
+    Dir::State::extended_states "$galaxy_check_tmp/extended_states";
+    Dir::Cache::archives "$galaxy_check_tmp/archives";
+    Dir::Cache::pkgcache "";
+    Dir::Cache::srcpkgcache "";
+    Dir::Log "$galaxy_check_tmp/log";
+    Debug::NoLocking "true";
+    Acquire::Retries "0";
+    Acquire::http::Timeout "30";
+    Acquire::https::Timeout "30";
+    APT::Update::Error-Mode "any";
+    #clear APT::Update::Pre-Invoke;
+    #clear APT::Update::Post-Invoke;
+    #clear APT::Update::Post-Invoke-Success;
+    #clear DPkg::Pre-Invoke;
+    #clear DPkg::Pre-Install-Pkgs;
+    #clear DPkg::Post-Invoke;
+    EOF
+    apt-get -c "$galaxy_check_tmp/apt.conf" update
+    if [ ! -x /usr/bin/python3 ]; then
+      candidate=$(LC_ALL=C apt-cache -c "$galaxy_check_tmp/apt.conf" policy python3 | awk '/Candidate:/ {print $2}')
+      if [ -z "$candidate" ] || [ "$candidate" = '(none)' ]; then
+        printf 'Aucun paquet python3 disponible dans les dépôts APT.\n' >&2
+        exit 1
+      fi
+      if ! dpkg --compare-versions "$candidate" ge 3.11; then
+        printf 'Python >= 3.11 est nécessaire. Paquet disponible : %s\n' "$candidate" >&2
+        exit 1
+      fi
+    fi
+    DEBIAN_FRONTEND=noninteractive apt-get -c "$galaxy_check_tmp/apt.conf" --yes --download-only \
+      install {{ (galaxy_system_packages + postgres_packages + geoserver_packages + ['logrotate']) | unique | map('quote') | join(' ') }}
+  changed_when: false
+  check_mode: false
+
+- name: Détecter Git sur la cible
+  ansible.builtin.raw: command -v git
+  register: galaxy_check_git_available
+  changed_when: false
+  failed_when: galaxy_check_git_available.rc not in [0, 1, 127]
+  check_mode: false
+
+- name: Vérifier l'accès aux dépôts si Git est installé
+  ansible.builtin.include_tasks: git.yml
+  when: galaxy_check_git_available.rc == 0
+
+- name: Signaler le contrôle Git différé
+  ansible.builtin.debug:
+    msg: Git est absent. L'accès aux dépôts sera vérifié après son installation par common, avant tout clonage.
+  when: galaxy_check_git_available.rc != 0
+

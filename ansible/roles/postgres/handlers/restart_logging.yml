@@ -1,0 +1,21 @@
+---
+- name: Vérifier si le cluster PostgreSQL est actif
+  ansible.builtin.command:
+    argv:
+      - pg_ctlcluster
+      - "{{ postgres_cluster_config_path | dirname | dirname | basename }}"
+      - "{{ postgres_cluster_config_path | dirname | basename }}"
+      - status
+  register: postgres_cluster_status
+  changed_when: false
+  failed_when: postgres_cluster_status.rc not in [0, 3]
+
+- name: Redémarrer uniquement le cluster actif dont les journaux ont changé
+  ansible.builtin.command:
+    argv:
+      - pg_ctlcluster
+      - "{{ postgres_cluster_config_path | dirname | dirname | basename }}"
+      - "{{ postgres_cluster_config_path | dirname | basename }}"
+      - restart
+  when: postgres_cluster_status.rc == 0
+  changed_when: true

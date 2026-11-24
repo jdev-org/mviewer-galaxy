@@ -1,0 +1,49 @@
+---
+- name: Installer logrotate
+  ansible.builtin.apt:
+    name: logrotate
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Créer le répertoire commun des journaux
+  ansible.builtin.file:
+    path: "{{ logging_root_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Créer le répertoire des journaux de l'application
+  ansible.builtin.file:
+    path: "{{ logging_directory }}"
+    state: directory
+    owner: "{{ logging_owner }}"
+    group: "{{ logging_group }}"
+    mode: '0750'
+
+- name: Préparer les journaux sans modifier leurs dates
+  ansible.builtin.file:
+    path: "{{ logging_directory }}/{{ item }}"
+    state: touch
+    owner: "{{ logging_owner }}"
+    group: "{{ logging_group }}"
+    mode: '0640'
+    modification_time: preserve
+    access_time: preserve
+  loop: "{{ logging_files }}"
+
+- name: Configurer la rotation des journaux de l'application
+  ansible.builtin.template:
+    src: application.logrotate.j2
+    dest: "/etc/logrotate.d/{{ logging_config_name }}"
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Activer la rotation quotidienne des journaux
+  ansible.builtin.systemd_service:
+    name: logrotate.timer
+    enabled: true
+    state: started
+  when: not ansible_check_mode

@@ -1,0 +1,9 @@
+---
+- name: Restart postgresql logging
+  ansible.builtin.include_tasks: restart_logging.yml
+  loop: >-
+    {{ ((postgres_log_config.results | default([]) | selectattr('changed') | map(attribute='item.path') | list)
+        + (postgres_log_links.results | default([]) | selectattr('changed') | map(attribute='item.path') | list)) | unique | list }}
+  loop_control:
+    loop_var: postgres_cluster_config_path
+  when: not ansible_check_mode

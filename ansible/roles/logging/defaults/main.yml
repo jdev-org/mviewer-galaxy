@@ -1,0 +1,5 @@
+---
+logging_root_dir: "{{ galaxy_logs_dir | default('/srv/logs') }}"
+logging_config_name: "mviewer-galaxy-{{ logging_application }}"
+logging_files: []
+logging_rotate: 14
