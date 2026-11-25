@@ -561,5 +561,3 @@ ansible-playbook playbooks/upgrade_mviewer.yml -e @site.yml --ask-become-pass
 | `--ask-become-pass` | Demande le mot de passe sudo utilisé pendant la mise à jour. |
 
 Ce playbook conserve les liens partagés et leurs données et ne demande pas les secrets de Studio ou de PostgreSQL.
-
-Pour migrer une ancienne configuration `.env` ou `group_vars/all.yml`, suivre [la procédure de migration](/mviewer-galaxy/guides/ansible/environnement/#migrer-une-installation-existante).

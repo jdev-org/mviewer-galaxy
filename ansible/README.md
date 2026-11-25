@@ -9,8 +9,6 @@ l'activation d'OIDC avec un fournisseur externe.
 Le playbook n'installe ni
 Docker ni Keycloak.
 
-Pour une installation existante, commencer par [migrer la configuration](#migrer-une-ancienne-configuration).
-
 ## 1. Vérifier les prérequis
 
 Préparer le poste de contrôle et le serveur cible :
@@ -552,39 +550,6 @@ quelques lignes peuvent être perdues pendant la rotation.
 Pour PostgreSQL, les
 liens de journaux sont gérés par cluster ; seuls les clusters actifs concernés
 par un changement sont redémarrés.
-
-## Migrer une ancienne configuration
-
-1. Sauvegarder les données existantes et les secrets.
-2. Reporter les adaptations de `group_vars/all.yml` et des anciens fichiers
-   `roles/postgres/defaults/main.yml` et `roles/geoserver/defaults/main.yml` dans
-   `site.yml`. Les valeurs fournies sont désormais réparties par application
-   sous `group_vars/all/`.
-3. Reporter les identifiants de l'ancien `.env` dans le Vault :
-
-   | Ancienne clé | Variable Vault |
-   |---|---|
-   | `POSTGRES_DB` | `postgres_database` |
-   | `POSTGRES_USER` | `postgres_username` |
-   | `POSTGRES_PASSWORD` | `postgres_password` |
-
-4. Conserver les noms SQL, les mots de passe actuels et la clé de session Studio.
-   Fournir les identifiants actuels de GeoServer ; le rôle n'a plus de mot de
-   passe administrateur par défaut. Chiffrer le Vault selon l'étape 5.
-5. Si les chemins de données changent, déplacer les données avant le déploiement
-   en conservant leurs propriétaires. Par exemple, migrer `/var/lib/geoserver/`
-   vers `/srv/data/geoserver/datadir/` avec les droits du compte `geoserver`.
-6. Rejouer les étapes 7 à 9 avec le Vault et les paramètres du site.
-7. Après validation, supprimer l'ancien `.env` local.
-
-Lorsqu'un dossier occupe l'emplacement d'un lien partagé, le playbook le déplace
-vers `<mviewer_install_dir>.<nom>-backup` sans écraser une sauvegarde existante.
-Récupérer les cartes souhaitées depuis ces sauvegardes ou les anciens dossiers
-`apps/store` et `apps/public`.
-
-Changer un chemin ne déplace pas les données.
-Les anciens répertoires et liens renommés sont conservés ; Git utilise
-`sparse-checkout` pour préserver les répertoires partagés lors des mises à jour.
 
 Pour personnaliser les noms de `store` et `public`, les chemins ou les ports,
 consulter le [guide d'adaptation à l'environnement](../docs/src/content/docs/guides/ansible/environnement.md).
