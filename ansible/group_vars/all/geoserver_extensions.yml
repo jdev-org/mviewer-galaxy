@@ -58,3 +58,7 @@ geoserver_extensions:
   - name: charts
     url: https://downloads.sourceforge.net/project/geoserver/GeoServer/3.0.2/extensions/geoserver-3.0.2-charts-plugin.zip
     checksum: sha256:52b6b5cf2582f4cbd93b7718921d7ce2cfd6ce9b0b4e2f5112a23e926595e7f1
+  # Cross-layer filtering
+  - name: querylayer
+    url: https://downloads.sourceforge.net/project/geoserver/GeoServer/3.0.2/extensions/geoserver-3.0.2-querylayer-plugin.zip
+    checksum: sha256:60f8d13d53ca059a99d418e7cfbe34bfff55b5dc2a1cd90db7cc686d42ccc08c
