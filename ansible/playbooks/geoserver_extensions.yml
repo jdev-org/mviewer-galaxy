@@ -1,0 +1,12 @@
+---
+- name: Installer ou mettre à jour les extensions d'un GeoServer existant
+  hosts: galaxy
+  become: true
+  gather_facts: false
+  vars_files:
+    - ../group_vars/all/common.yml
+    - ../group_vars/all/geoserver.yml
+    - ../group_vars/all/geoserver_extensions.yml
+  roles:
+    - role: geoserver_extensions
+      tags: [geoserver_extensions]

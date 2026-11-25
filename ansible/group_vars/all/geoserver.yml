@@ -30,3 +30,11 @@ geoserver_java_options:
   - -Djava.awt.headless=true
   # Mitigation recommandée par GeoServer pour CVE-2026-114938.
   - -XX:-UseBASE64Intrinsics
+
+# Installation et mise à jour des extensions (liste dans geoserver_extensions.yml).
+geoserver_extensions_cache_dir: "{{ geoserver_download_dir }}/extensions/{{ geoserver_version }}"
+geoserver_extensions_lib_dir: "{{ geoserver_install_dir }}/webapps/geoserver/WEB-INF/lib"
+geoserver_extensions_service_unit: /etc/systemd/system/geoserver.service
+# OGR utilise ogr2ogr ; Image Pyramid peut être préparée avec gdal_retile.py.
+# GDAL raster/JNI n'est pas installé.
+geoserver_extension_packages: "{{ (['gdal-bin'] if 'ogr-wfs' in (geoserver_extensions | map(attribute='name') | list) else []) + (['python3-gdal'] if 'pyramid' in (geoserver_extensions | map(attribute='name') | list) else []) }}"

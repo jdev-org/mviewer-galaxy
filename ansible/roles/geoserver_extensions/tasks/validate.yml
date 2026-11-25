@@ -1,0 +1,19 @@
+---
+- name: Valider la liste des extensions et leur version
+  ansible.builtin.assert:
+    that:
+      - geoserver_extensions is sequence and geoserver_extensions is not string and geoserver_extensions is not mapping
+      - geoserver_extensions | length == 0 or geoserver_extensions_version == geoserver_version
+      - geoserver_extensions | map(attribute='name') | unique | length == geoserver_extensions | length
+    fail_msg: Vérifier la liste geoserver_extensions et sa version dans group_vars/all/geoserver_extensions.yml.
+
+- name: Valider les URL et empreintes des extensions
+  ansible.builtin.assert:
+    that:
+      - item.name is match('^[a-z0-9][a-z0-9-]*$')
+      - item.url is match('^https://[^ ]+$')
+      - item.checksum is match('^sha256:[0-9a-f]{64}$')
+    fail_msg: Chaque extension doit définir name, une URL HTTPS et un checksum SHA-256.
+  loop: "{{ geoserver_extensions }}"
+  loop_control:
+    label: "{{ item.name }}"

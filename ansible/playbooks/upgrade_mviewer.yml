@@ -10,5 +10,6 @@
     - ../group_vars/all/nginx.yml
     - ../group_vars/all/postgres.yml
     - ../group_vars/all/geoserver.yml
+    - ../group_vars/all/geoserver_extensions.yml
   roles:
     - upgrade_mviewer

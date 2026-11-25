@@ -1,0 +1,60 @@
+---
+# Extensions officielles : https://geoserver.org/release/3.0.2/
+# Chaque archive doit correspondre exactement à la version de GeoServer.
+# Mettre à jour les URL et empreintes ensemble lors du changement de version.
+geoserver_extensions_version: '3.0.2'
+geoserver_extensions:
+  # OGC API Features
+  - name: ogcapi-features
+    url: https://downloads.sourceforge.net/project/geoserver/GeoServer/3.0.2/extensions/geoserver-3.0.2-ogcapi-features-plugin.zip
+    checksum: sha256:19f67961262bbd7235b201e8ceb72a53254b53df37f69229395cae2a23b8883e
+  # SLDService
+  - name: sldservice
+    url: https://downloads.sourceforge.net/project/geoserver/GeoServer/3.0.2/extensions/geoserver-3.0.2-sldservice-plugin.zip
+    checksum: sha256:64e5be1ec658851ea43e731c33ab758ca7812e4221b30b1865fdcecf87910eb5
+  # DXF
+  - name: dxf
+    url: https://downloads.sourceforge.net/project/geoserver/GeoServer/3.0.2/extensions/geoserver-3.0.2-dxf-plugin.zip
+    checksum: sha256:03ad056cb20672abb3ed2a21554abcef2b4a6b3d6356a05d5859f625b5978112
+    # Le module PPIO nécessite WPS ; seule la sortie DXF/WFS est sélectionnée.
+    exclude_jars: ['gs-dxf-wps-*.jar']
+  # Excel (WFS)
+  - name: excel
+    url: https://downloads.sourceforge.net/project/geoserver/GeoServer/3.0.2/extensions/geoserver-3.0.2-excel-plugin.zip
+    checksum: sha256:040c7a77c52d4ba944829769c1f3e09a26b572cf140cdea639ca62580fcadf92
+  # GeoPackage en sortie
+  - name: geopkg-output
+    url: https://downloads.sourceforge.net/project/geoserver/GeoServer/3.0.2/extensions/geoserver-3.0.2-geopkg-output-plugin.zip
+    checksum: sha256:d771801f0d41a0bd6a5cb234ed79a4de1b5b3272f14f8197d2c40837dca4514f
+  # KML / KMZ
+  - name: kml
+    url: https://downloads.sourceforge.net/project/geoserver/GeoServer/3.0.2/extensions/geoserver-3.0.2-kml-plugin.zip
+    checksum: sha256:b942b9902985b41d1b25e3481fd230dc9272fae185ca84192007338bb1a4c932
+  # OGR en sortie WFS
+  - name: ogr-wfs
+    url: https://downloads.sourceforge.net/project/geoserver/GeoServer/3.0.2/extensions/geoserver-3.0.2-ogr-wfs-plugin.zip
+    checksum: sha256:32f6f1c73fa56d44a5c79fe1b06c7f5ad70163bd97646618169e0fbda7d05b17
+  # Vector Tiles
+  - name: vectortiles
+    url: https://downloads.sourceforge.net/project/geoserver/GeoServer/3.0.2/extensions/geoserver-3.0.2-vectortiles-plugin.zip
+    checksum: sha256:289bc62c212826650f72873e8c4beac4281b4a241552a3b6dbf533022367745d
+  # Image Pyramid
+  - name: pyramid
+    url: https://downloads.sourceforge.net/project/geoserver/GeoServer/3.0.2/extensions/geoserver-3.0.2-pyramid-plugin.zip
+    checksum: sha256:a29284a5705244396016946f6062ce00afa22df31fafe9fbe52c04256274736b
+  # Importer
+  - name: importer
+    url: https://downloads.sourceforge.net/project/geoserver/GeoServer/3.0.2/extensions/geoserver-3.0.2-importer-plugin.zip
+    checksum: sha256:b33903ececa5498c8e3552f2ad559492488ae5bca636899f19b2542eaefb07b5
+  # Styles YSLD
+  - name: ysld
+    url: https://downloads.sourceforge.net/project/geoserver/GeoServer/3.0.2/extensions/geoserver-3.0.2-ysld-plugin.zip
+    checksum: sha256:bba58de73e30d48e9cf0d2adc07be2473e94739bb2897e303b783bc21c904764
+  # Styles CSS
+  - name: css
+    url: https://downloads.sourceforge.net/project/geoserver/GeoServer/3.0.2/extensions/geoserver-3.0.2-css-plugin.zip
+    checksum: sha256:fd067a425f883f9aafbeb555c5f0033daa45e55652df7ea53d2700cea68e402d
+  # Chart Symbolizer
+  - name: charts
+    url: https://downloads.sourceforge.net/project/geoserver/GeoServer/3.0.2/extensions/geoserver-3.0.2-charts-plugin.zip
+    checksum: sha256:52b6b5cf2582f4cbd93b7718921d7ce2cfd6ce9b0b4e2f5112a23e926595e7f1

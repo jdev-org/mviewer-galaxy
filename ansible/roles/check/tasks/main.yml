@@ -91,7 +91,7 @@
       fi
     fi
     DEBIAN_FRONTEND=noninteractive apt-get -c "$galaxy_check_tmp/apt.conf" --yes --download-only \
-      install {{ (galaxy_system_packages + postgres_packages + geoserver_packages + ['logrotate']) | unique | map('quote') | join(' ') }}
+      install {{ (galaxy_system_packages + postgres_packages + geoserver_packages + geoserver_extension_packages + ['logrotate']) | unique | map('quote') | join(' ') }}
   changed_when: false
   check_mode: false
 

@@ -19,6 +19,13 @@
       - geoserver_bind_address is match('^[a-zA-Z0-9_.:-]+$')
     fail_msg: Vérifier la version, l'adresse et le port de GeoServer.
 
+- name: Vérifier les extensions avant de modifier la distribution GeoServer
+  ansible.builtin.include_role:
+    name: geoserver_extensions
+    tasks_from: validate
+    apply:
+      tags: [geoserver]
+
 - name: Installer Java 21 et les outils de déploiement GeoServer
   ansible.builtin.apt:
     name: "{{ geoserver_packages }}"
@@ -127,6 +134,12 @@
         group: root
       when: not geoserver_existing_distribution.stat.exists
       notify: Restart geoserver
+
+    - name: Installer les extensions GeoServer sélectionnées
+      ansible.builtin.include_role:
+        name: geoserver_extensions
+        apply:
+          tags: [geoserver]
 
     - name: Détecter des données GeoServer existantes
       ansible.builtin.find:

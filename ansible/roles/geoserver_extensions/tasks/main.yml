@@ -1,0 +1,106 @@
+---
+- name: Vérifier la sélection des extensions
+  ansible.builtin.import_tasks: validate.yml
+
+- name: Vérifier la présence du répertoire des bibliothèques GeoServer
+  ansible.builtin.stat:
+    path: "{{ geoserver_extensions_lib_dir }}"
+  register: geoserver_extensions_lib
+
+- name: Exiger une distribution GeoServer déjà extraite
+  ansible.builtin.assert:
+    that:
+      - geoserver_extensions_lib.stat.isdir | default(false)
+    fail_msg: Installer GeoServer avant d'exécuter le playbook dédié aux extensions.
+
+- name: Installer les outils système requis par les extensions sélectionnées
+  ansible.builtin.apt:
+    name: "{{ geoserver_extension_packages }}"
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+  when: geoserver_extension_packages | length > 0
+
+- name: Créer le cache des extensions vérifiées
+  ansible.builtin.file:
+    path: "{{ geoserver_extensions_cache_dir }}"
+    state: directory
+    mode: '0755'
+
+# Les archives absentes ne sont pas téléchargées par get_url en mode --check.
+- name: Télécharger et vérifier les archives des extensions
+  ansible.builtin.get_url:
+    url: "{{ item.url }}"
+    dest: "{{ geoserver_extensions_cache_dir }}/{{ item.name }}.zip"
+    checksum: "{{ item.checksum }}"
+    mode: '0644'
+    timeout: 120
+  loop: "{{ geoserver_extensions }}"
+  loop_control:
+    label: "{{ item.name }}"
+  when: not ansible_check_mode
+
+- name: Prévoir les changements des bibliothèques sans modifier GeoServer
+  galaxy_geoserver_extensions:
+    extensions: "{{ geoserver_extensions }}"
+    cache_dir: "{{ geoserver_extensions_cache_dir }}"
+    lib_dir: "{{ geoserver_extensions_lib_dir }}"
+    allow_missing: "{{ ansible_check_mode }}"
+  check_mode: true
+  register: geoserver_extensions_plan
+
+- name: Détecter le service GeoServer existant
+  ansible.builtin.stat:
+    path: "{{ geoserver_extensions_service_unit }}"
+  register: geoserver_extensions_service
+
+- name: Arrêter GeoServer avant de modifier ses bibliothèques
+  ansible.builtin.systemd_service:
+    name: geoserver
+    state: stopped
+  when:
+    - not ansible_check_mode
+    - geoserver_extensions_plan.changed
+    - geoserver_extensions_service.stat.exists
+
+- name: Installer uniquement les bibliothèques nouvelles ou modifiées
+  galaxy_geoserver_extensions:
+    extensions: "{{ geoserver_extensions }}"
+    cache_dir: "{{ geoserver_extensions_cache_dir }}"
+    lib_dir: "{{ geoserver_extensions_lib_dir }}"
+  when:
+    - not ansible_check_mode
+    - geoserver_extensions_plan.changed
+
+# Démarrer aussi après une reprise où les JAR sont déjà copiés, mais le service arrêté.
+- name: Démarrer GeoServer après la mise à jour des extensions
+  ansible.builtin.systemd_service:
+    name: geoserver
+    state: started
+  register: geoserver_extensions_started
+  when:
+    - not ansible_check_mode
+    - geoserver_extensions_service.stat.exists
+
+- name: Attendre le retour de l'interface GeoServer après redémarrage
+  ansible.builtin.uri:
+    url: "{{ geoserver_rest_url }}/web/"
+    status_code: [200, 302, 303]
+    follow_redirects: none
+    use_proxy: false
+    timeout: 10
+  register: geoserver_extensions_ready
+  until: geoserver_extensions_ready.status | default(0) in [200, 302, 303]
+  retries: 60
+  delay: 2
+  when:
+    - not ansible_check_mode
+    - geoserver_extensions_service.stat.exists
+    - geoserver_extensions_plan.changed or geoserver_extensions_started.changed | default(false)
+
+- name: Signaler les limites de la simulation des extensions
+  ansible.builtin.debug:
+    msg: "Archives non mises en cache : {{ geoserver_extensions_plan.missing_archives | join(', ') }}. Leur téléchargement et leur contenu seront vérifiés lors de l'exécution réelle."
+  when:
+    - ansible_check_mode
+    - geoserver_extensions_plan.missing_archives | length > 0

@@ -10,6 +10,7 @@
     - ../group_vars/all/nginx.yml
     - ../group_vars/all/postgres.yml
     - ../group_vars/all/geoserver.yml
+    - ../group_vars/all/geoserver_extensions.yml
   pre_tasks:
     - name: Vérifier les paramètres du déploiement
       ansible.builtin.assert:
