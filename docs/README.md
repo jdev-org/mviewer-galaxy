@@ -51,7 +51,7 @@ sélectionner **Pages → Source → GitHub Actions**.
 - `src/content/docs/index.mdx` : accueil.
 - `src/content/docs/guides/` : parcours de démarrage et exploitation.
 - `src/content/docs/guides/installation-ansible.md` : installation native, configuration PostgreSQL et GeoServer, chemins et vérifications.
-- `src/content/docs/guides/ansible/` : répartition des variables dans `common.yml` et les cinq fichiers applicatifs, gestion du Vault et dépannage Ansible.
+- `src/content/docs/guides/ansible/` : répartition des variables dans `common.yml` et les cinq fichiers applicatifs, gestion du Vault, liste des extensions GeoServer (URL et empreintes), mise à jour dédiée et dépannage Ansible.
 - `src/content/docs/guides/ansible/developpeur/` : tests du déploiement sur une cible Docker avec systemd et SSH.
 - `examples/ansible-docker/Dockerfile` : image de développement utilisée par ce guide.
 - `examples/ansible-docker/mviewerstudio/src/static/config.json` : configuration Studio pour la cible de test, avec le WMS GeoServer local.

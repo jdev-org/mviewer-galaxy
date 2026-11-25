@@ -138,7 +138,7 @@ geoserver_datastore: postgis
 
 - Variables are split between `group_vars/all/common.yml` and one file per application under `group_vars/all/`. Secrets belong in `secrets.vault.yml`.
 
-- Both playbooks explicitly load all six files in `group_vars/all/`. Deployment overrides in `-e @site.yml` take precedence.
+- Both playbooks explicitly load the application settings and extension list in `group_vars/all/`. Deployment overrides in `-e @site.yml` take precedence.
 
 - Sources are cloned from their Git repositories on the target.
 
@@ -160,6 +160,7 @@ geoserver_datastore: postgis
 | `group_vars/all/nginx.yml` | Public server name, HTTP port and logs |
 | `group_vars/all/postgres.yml` | Packages, database and user defaults, port, socket and pg_hba template |
 | `group_vars/all/geoserver.yml` | Version, archive checksum, Java, paths, ports and PostGIS catalog |
+| `group_vars/all/geoserver_extensions.yml` | Extension list, archive URLs and SHA-256 checksums |
 
 <div class="ansible-section-anchor" id="install-database"></div>
 
@@ -333,6 +334,8 @@ ansible-playbook playbooks/install.yml -e @site.yml -e @secrets.vault.yml --ask-
 - Pin Git versions to tags or SHAs for a reproducible deployment.
 
 - Changing a database name creates a new database without migrating the old one.
+
+The default deployment also installs 13 extensions listed with their URLs and SHA-256 checksums in `group_vars/all/geoserver_extensions.yml`. To add extensions later, use the dedicated `playbooks/geoserver_extensions.yml` playbook. See [extension management](/mviewer-galaxy/en/guides/ansible/environnement/#add-or-update-geoserver-extensions). GDAL raster support is excluded; OGR and Image Pyramid install the `gdal-bin` and `python3-gdal` tools.
 
 <div class="ansible-section-anchor" id="install-applications"></div>
 

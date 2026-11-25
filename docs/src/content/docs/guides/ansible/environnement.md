@@ -31,8 +31,9 @@ description: "Personnaliser l'inventaire, les variables, PostgreSQL, GeoServer e
 | `group_vars/all/nginx.yml` | Nom du serveur public, port HTTP et journaux |
 | `group_vars/all/postgres.yml` | Paquets, base et utilisateur par défaut, port, socket et template pg_hba |
 | `group_vars/all/geoserver.yml` | Version, empreinte de l’archive, Java, chemins, ports et catalogue PostGIS |
+| `group_vars/all/geoserver_extensions.yml` | Liste des extensions avec URL et empreintes SHA-256 |
 
-- Les deux playbooks chargent explicitement ces six fichiers avec `vars_files`, y compris avec un autre inventaire.
+- Les deux playbooks principaux chargent explicitement ces fichiers avec `vars_files`, y compris avec un autre inventaire.
 
 - Conserver les adaptations du déploiement dans `site.yml`, chargé avec `-e @site.yml`. Ces variables remplacent les valeurs fournies ; si plusieurs fichiers `-e @…` définissent la même variable, le dernier a priorité.
 
@@ -186,6 +187,87 @@ mviewerstudio_auth_mode: public
 
 - Le callback doit correspondre au domaine, au schéma public et à `mviewerstudio_url_prefix`.
 
+## Ajouter ou mettre à jour les extensions GeoServer
+
+### Modifier la liste des extensions
+
+Ouvrir `group_vars/all/geoserver_extensions.yml`. Ce fichier contient la version
+ciblée et, pour chaque extension, son nom, son URL HTTPS et son empreinte SHA-256.
+Les extensions sont téléchargées pendant le déploiement complet et peuvent être
+ajoutées ensuite avec le playbook dédié.
+
+| Fonction | Identifiant d'extension |
+|---|---|
+| OGC API Features | `ogcapi-features` |
+| Service SLD | `sldservice` |
+| Sorties DXF, Excel, GeoPackage, KML/KMZ | `dxf`, `excel`, `geopkg-output`, `kml` |
+| Sorties OGR et tuiles vectorielles | `ogr-wfs`, `vectortiles` |
+| Couverture Image Pyramid | `pyramid` |
+| Import de données | `importer` |
+| Styles YSLD, CSS et Chart Symbolizer | `ysld`, `css`, `charts` |
+
+La sélection comporte 13 extensions. L'extension raster GDAL n'est pas incluse.
+Les sorties DXF, Excel et OGR concernent WFS ; WPS n'est pas installé.
+L'entrée DXF exclut son JAR WPS facultatif avec `exclude_jars`, conformément
+aux [instructions d'installation DXF](https://docs.geoserver.org/stable/en/user/extensions/dxf/).
+
+OGR nécessite `gdal-bin` pour la commande `ogr2ogr`. Image Pyramid ajoute
+`python3-gdal` pour l'outil de préparation `gdal_retile.py`. Ces paquets sont
+installés automatiquement selon la sélection et vérifiés par le rôle `check`.
+Aucune liaison Java/JNI GDAL n'est nécessaire pour cette sélection.
+
+Pour une extension supplémentaire, ajouter une entrée à la liste. Voici
+l'entrée CSS déjà fournie :
+
+```yaml
+  - name: css
+    url: https://downloads.sourceforge.net/project/geoserver/GeoServer/3.0.2/extensions/geoserver-3.0.2-css-plugin.zip
+    checksum: sha256:fd067a425f883f9aafbeb555c5f0033daa45e55652df7ea53d2700cea68e402d
+```
+
+Utiliser une archive correspondant exactement à `geoserver_version` et calculer
+son SHA-256 depuis le fichier téléchargé :
+
+```bash
+sha256sum geoserver-3.0.2-css-plugin.zip
+```
+
+La version et les archives sont référencées sur la
+[page officielle GeoServer](https://geoserver.org/release/3.0.2/).
+
+### Appliquer les changements sur un GeoServer installé
+
+Depuis `ansible/` sur le poste de contrôle, simuler puis appliquer :
+
+```bash
+ansible-playbook playbooks/geoserver_extensions.yml -e @site.yml --ask-become-pass --check --diff
+ansible-playbook playbooks/geoserver_extensions.yml -e @site.yml --ask-become-pass
+```
+
+Omettre `-e @site.yml` si ce fichier n'existe pas. Ce playbook ne demande aucun
+secret applicatif et ne rejoue pas PostgreSQL, Studio ou la configuration du
+catalogue. Si les mots de passe SSH/sudo sont dans le Vault, ajouter
+`-e @secrets.vault.yml --ask-vault-pass`.
+
+Le rôle dédié `geoserver_extensions` vérifie les empreintes et les bibliothèques
+partagées avant de modifier le service. Il arrête GeoServer si des JAR changent,
+installe uniquement les fichiers nouveaux ou modifiés, puis redémarre le service
+et attend le retour de l'interface. Un second passage sans modification ne
+redémarre pas GeoServer.
+
+En simulation, les archives absentes du cache sont signalées sans téléchargement :
+leur contenu sera vérifié lors de l'exécution réelle.
+
+Le rôle installe et met à jour les extensions de la liste. Retirer une entrée
+ne supprime pas ses JAR déjà installés, car certaines bibliothèques sont partagées.
+
+### Vérifier l'installation
+
+Ouvrir `http://<serveur>/geoserver/web/`, puis consulter l'état des modules.
+Vérifier les formats de sortie dans les capacités WFS/WMS, les styles et l'option
+Image Pyramid lors de la création d'un entrepôt raster. OGC API Features est
+accessible sous `/geoserver/ogc/features/v1`.
+
 ## Chemins et versions
 
 | Variable | Valeur par défaut | Utilité |
@@ -206,7 +288,7 @@ mviewerstudio_auth_mode: public
 
 - Figer `mviewer_version` et `mviewerstudio_version` sur des tags ou SHA pour reproduire un déploiement.
 
-- Pour GeoServer, adapter ensemble `geoserver_version` et `geoserver_archive_checksum`.
+- Pour GeoServer, adapter ensemble `geoserver_version`, `geoserver_archive_checksum`, la version des extensions, leurs URL et leurs empreintes.
 
 - `logging_rotate` définit le nombre d'archives de journaux conservées (14 par défaut).
 

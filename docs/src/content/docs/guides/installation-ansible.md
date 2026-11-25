@@ -138,7 +138,7 @@ geoserver_datastore: postgis
 
 - Les personnaliser avec `-e @site.yml`.
 
-- Les deux playbooks chargent explicitement les six fichiers de variables, même avec un inventaire personnalisé.
+- Les deux playbooks principaux chargent explicitement les fichiers de variables et la liste des extensions, même avec un inventaire personnalisé.
 
 - Les sources sont clonées sur la cible depuis les dépôts Git, sans transférer les modifications locales des sous-modules.
 
@@ -158,6 +158,7 @@ geoserver_datastore: postgis
 | `group_vars/all/nginx.yml` | Nom du serveur public, port HTTP et journaux |
 | `group_vars/all/postgres.yml` | Paquets, base et utilisateur par défaut, port, socket et template pg_hba |
 | `group_vars/all/geoserver.yml` | Version, empreinte de l’archive, Java, chemins, ports et catalogue PostGIS |
+| `group_vars/all/geoserver_extensions.yml` | Liste des extensions, URL des archives et empreintes SHA-256 |
 
 <div class="ansible-section-anchor" id="install-database"></div>
 
@@ -329,6 +330,8 @@ ansible-playbook playbooks/install.yml -e @site.yml -e @secrets.vault.yml --ask-
 - Figer les versions Git par tag ou SHA pour un déploiement reproductible.
 
 - Changer un nom de base crée une nouvelle base sans migrer l'ancienne.
+
+Le déploiement installe aussi les 13 extensions listées avec leurs URL et empreintes SHA-256 dans `group_vars/all/geoserver_extensions.yml`. Pour en ajouter ensuite, utiliser le playbook dédié `playbooks/geoserver_extensions.yml`. Voir [la gestion des extensions](/mviewer-galaxy/guides/ansible/environnement/#ajouter-ou-mettre-à-jour-les-extensions-geoserver). Le support raster GDAL est exclu ; OGR et Image Pyramid installent les outils `gdal-bin` et `python3-gdal`.
 
 <div class="ansible-section-anchor" id="install-applications"></div>
 
