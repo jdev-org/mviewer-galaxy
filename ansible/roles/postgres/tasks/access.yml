@@ -17,7 +17,23 @@
     mode: '0640'
   notify: Reload postgresql access
 
-- name: Vérifier la syntaxe des fichiers PostgreSQL avant leur application
+# Lire la configuration dans un nouveau processus valide aussi les paramètres
+# de démarrage : pg_file_settings les signale comme non applicables à chaud.
+- name: Valider postgresql.conf sans démarrer ni modifier le serveur
+  ansible.builtin.command:
+    argv:
+      - runuser
+      - -u
+      - postgres
+      - --
+      - "/usr/lib/postgresql/{{ postgres_database_result.config_file | dirname | dirname | basename }}/bin/postgres"
+      - -D
+      - "{{ postgres_database_result.config_file | dirname }}"
+      - -C
+      - listen_addresses
+  changed_when: false
+
+- name: Vérifier la syntaxe du fichier pg_hba.conf avant son application
   ansible.builtin.command:
     argv:
       - runuser
@@ -34,7 +50,31 @@
       - "--port={{ postgres_port }}"
       - --dbname=postgres
       - --command
-      - "SELECT error FROM pg_hba_file_rules WHERE error IS NOT NULL UNION ALL SELECT error FROM pg_file_settings WHERE error IS NOT NULL;"
+      - "SELECT format('pg_hba.conf:%s: %s', line_number, error) FROM pg_hba_file_rules WHERE error IS NOT NULL;"
   register: postgres_access_validation
   changed_when: false
   failed_when: postgres_access_validation.rc != 0 or postgres_access_validation.stdout | trim | length > 0
+
+# Une exécution précédente peut avoir écrit le fichier puis échoué avant les
+# handlers. Détecter aussi l'écart avec le serveur actif lors d'une reprise.
+- name: Détecter si les interfaces PostgreSQL attendent un redémarrage
+  ansible.builtin.command:
+    argv:
+      - runuser
+      - -u
+      - postgres
+      - --
+      - psql
+      - --no-psqlrc
+      - --no-password
+      - --tuples-only
+      - --no-align
+      - --set=ON_ERROR_STOP=1
+      - "--host={{ postgres_socket_dir }}"
+      - "--port={{ postgres_port }}"
+      - --dbname=postgres
+      - --command
+      - SHOW listen_addresses;
+  register: postgres_listen_state
+  changed_when: postgres_listen_state.stdout | trim != '*'
+  notify: Restart postgresql configuration
