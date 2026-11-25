@@ -37,6 +37,17 @@ docker compose --env-file docker/.env.docker -f docker/docker-compose.yml --prof
 Le profil `keycloak` ajoute le serveur local. Les URL et identifiants Authlib
 se configurent dans `docker/envs/.envs-mviewerstudio` pour le mode choisi.
 
+## Installation native avec Ansible
+
+Le [guide Ansible](ansible/README.md) décrit l’installation de PostgreSQL/PostGIS,
+GeoServer, Mviewer, Studio et nginx avec systemd.
+
+Les variables se trouvent dans `ansible/group_vars/all/` : `common.yml` pour les
+paramètres partagés et un fichier par application. Les adaptations du site se
+chargent avec `-e @site.yml`. Les secrets sont regroupés dans un Vault, préparé
+à partir de `ansible/secrets.example.yml`, chiffré puis chargé avec
+`-e @secrets.vault.yml --ask-vault-pass` depuis `ansible/`.
+
 ## Accès
 
 - [Mviewer Studio](http://localhost/mviewerstudio/)

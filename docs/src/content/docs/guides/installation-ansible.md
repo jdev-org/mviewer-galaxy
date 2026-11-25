@@ -23,9 +23,9 @@ next:
 | 1. [Vérifier les prérequis](#install-prerequisites) | Préparer Ansible sur le poste de contrôle et une cible avec systemd, Python 3.11+ et Java 21 disponible dans APT. | Environnement compatible avec les rôles. |
 | 2. [Configurer SSH](#install-ssh) | Renseigner l'adresse du serveur et le compte SSH avec sudo dans l'inventaire. | Serveur accessible dans le groupe `galaxy`. |
 | 3. [Définir le site](#install-site) | Créer `site.yml` avec le domaine public et les paramètres souhaités. | Configuration propre au déploiement. |
-| 4. [Préparer la base SIG](#install-database) | Renseigner la base, l'utilisateur SQL et son mot de passe dans `.env`. | Identifiants partagés par PostgreSQL et GeoServer. |
+| 4. [Préparer la base SIG](#install-database) | Renseigner la base, l'utilisateur SQL et son mot de passe dans `secrets.vault.yml`. | Identifiants partagés par PostgreSQL et GeoServer. |
 | 5. [Préparer les accès PostgreSQL](#install-network) | Adapter le template `pg_hba.conf.j2` avec les clients autorisés. | Règles réseau prêtes avant l'installation. |
-| 6. [Préparer les secrets](#install-secrets) | Définir la clé de session Studio et chiffrer le fichier de secrets avec Vault. | Secrets disponibles pour le playbook. |
+| 6. [Préparer les secrets](#install-secrets) | Définir les accès GeoServer, la clé Studio et les secrets OIDC éventuels, puis chiffrer le Vault. | Secrets disponibles pour le playbook. |
 | 7. [Contrôler et déployer](#install-deployment) | Vérifier les prérequis, puis exécuter le playbook avec les fichiers du site et des secrets. | Applications installées et services configurés. |
 | 8. [Vérifier les applications](#install-applications) | Ouvrir les URL publiques et [consulter les services et journaux](#install-operations). | Accueil, Mviewer, Studio et GeoServer accessibles. |
 | 9. [Configurer CORS si nécessaire](#install-cors) | Autoriser les origines clientes si les cartes interrogent GeoServer depuis une autre origine. | Requêtes du navigateur autorisées pour ces clients. |
@@ -134,9 +134,11 @@ geoserver_datastore: postgis
 
 - Faire pointer l'enregistrement DNS du domaine public vers le serveur.
 
-- Les valeurs communes sont dans `group_vars/all.yml` et les valeurs propres aux rôles dans `roles/*/defaults/main.yml`.
+- Les variables sont dans `group_vars/all/common.yml` et un fichier par application sous `group_vars/all/`. Les secrets sont dans `secrets.vault.yml`.
 
 - Les personnaliser avec `-e @site.yml`.
+
+- Les deux playbooks chargent explicitement les six fichiers de variables, même avec un inventaire personnalisé.
 
 - Les sources sont clonées sur la cible depuis les dépôts Git, sans transférer les modifications locales des sous-modules.
 
@@ -148,38 +150,47 @@ geoserver_datastore: postgis
 
 - Elle ne configure pas de certificat.
 
+| Fichier | Paramètres |
+|---|---|
+| `group_vars/all/common.yml` | Comptes système, chemins partagés, paquets communs et schéma public |
+| `group_vars/all/mviewer.yml` | Dépôt et version Git, répertoires partagés apps/store/public |
+| `group_vars/all/mviewerstudio.yml` | Dépôt et version Git, Gunicorn, chemins et paramètres OIDC publics |
+| `group_vars/all/nginx.yml` | Nom du serveur public, port HTTP et journaux |
+| `group_vars/all/postgres.yml` | Paquets, base et utilisateur par défaut, port, socket et template pg_hba |
+| `group_vars/all/geoserver.yml` | Version, empreinte de l’archive, Java, chemins, ports et catalogue PostGIS |
+
 <div class="ansible-section-anchor" id="install-database"></div>
 
 ## Préparer la base de données SIG
 
 ```bash
-cp .env.example .env
-chmod 600 .env
+cp secrets.example.yml secrets.vault.yml
+chmod 600 secrets.vault.yml
 ```
 
-- `.env.example` / `.env` : Modèle fourni et fichier local contenant les identifiants PostgreSQL à personnaliser.
+- `secrets.example.yml` / `secrets.vault.yml` : Modèle fourni et fichier local contenant les identifiants PostgreSQL à personnaliser.
 
-Modifier `.env` avec les valeurs souhaitées et un mot de passe personnel :
+Modifier `secrets.vault.yml` avec les valeurs souhaitées et un mot de passe personnel :
 
-```dotenv
-POSTGRES_DB=donneessig
-POSTGRES_USER=usersig
-POSTGRES_PASSWORD=
+```yaml
+postgres_database: donneessig
+postgres_username: usersig
+postgres_password: ""
 ```
 
 | Élément | Explication |
 |---|---|
-| `POSTGRES_DB` | Nom de la base SIG à créer ; `donneessig` est la valeur par défaut. |
-| `POSTGRES_USER` | Compte SQL propriétaire de la base et du schéma `public` ; `usersig` est la valeur par défaut. |
-| `POSTGRES_PASSWORD` | Mot de passe SQL obligatoire à renseigner ; ne pas laisser la valeur vide. |
+| `postgres_database` | Nom de la base SIG à créer ; `donneessig` est la valeur par défaut. |
+| `postgres_username` | Compte SQL propriétaire de la base et du schéma `public` ; `usersig` est la valeur par défaut. |
+| `postgres_password` | Mot de passe SQL obligatoire à renseigner ; ne pas laisser la valeur vide. |
 
 - Le mot de passe est obligatoire.
 
-- Les valeurs sont lues littéralement : aucune commande shell ni variable n'est exécutée.
+- Les valeurs suivent la syntaxe YAML et sont transmises aux modules sans interprétation shell.
 
-- `.env` est ignoré par Git et lu sur le poste de contrôle.
+- `secrets.vault.yml` est ignoré par Git et lu sur le poste de contrôle.
 
-- Un autre fichier peut être indiqué avec `-e postgres_env_file=/chemin/production.env`.
+- Charger le fichier chiffré avec `-e @secrets.vault.yml --ask-vault-pass`.
 
 - Le rôle crée l'utilisateur SQL, la base et PostGIS.
 
@@ -203,7 +214,7 @@ host "{{ postgres_configuration.database }}" "{{ postgres_configuration.username
 
 - Remplacer `192.0.2.10/32` par l'adresse du client ou le réseau autorisé.
 
-- Conserver les variables Jinja : les noms de base et d'utilisateur proviennent de `.env`.
+- Conserver les variables Jinja : les noms de base et d'utilisateur proviennent de `secrets.vault.yml`.
 
 - Adapter le pare-feu pour autoriser les connexions souhaitées au port PostgreSQL.
 
@@ -211,25 +222,37 @@ Pour le format des règles et les méthodes d'authentification, consulter la [do
 
 <div class="ansible-section-anchor" id="install-secrets"></div>
 
-## Préparer les secrets de Studio
+## Compléter et chiffrer le Vault des applications
 
 ```bash
-cp secrets.example.yml secrets.vault.yml
+# Reprendre le fichier préparé pour la base SIG.
 python3 -c 'import secrets; print(secrets.token_hex(32))'
 ```
 
 | Élément | Explication |
 |---|---|
 | `secrets.example.yml` / `secrets.vault.yml` | Modèle fourni et fichier de secrets du déploiement, à personnaliser et chiffrer. |
-| `mviewerstudio_secret_key` | Variable à renseigner avec cette valeur pour signer les sessions de Studio. |
+| `mviewerstudio_secret_key` | Clé de session aléatoire de 32 caractères minimum ; obligatoire même en mode public. |
+| `geoserver_admin_username`, `geoserver_admin_password` | Compte REST actuel de GeoServer, obligatoire dès la première installation ; aucune valeur par défaut dans le rôle. |
+| `mviewerstudio_oidc_client_secret` | Secret du client OIDC en mode `authlib`. |
+| `ansible_password`, `ansible_become_password` | Mots de passe SSH/sudo facultatifs ; à conserver dans le Vault si nécessaires. |
 
 - Renseigner la valeur générée dans `mviewerstudio_secret_key` du fichier `secrets.vault.yml`.
+
+- Renseigner aussi `geoserver_admin_username` et `geoserver_admin_password` avec les identifiants actuels du serveur, dès la première installation.
 
 - Chiffrer ce fichier :
 
 ```bash
 ansible-vault encrypt secrets.vault.yml
 ```
+
+- Pour une installation vierge, les identifiants initiaux GeoServer sont `admin` / `geoserver`. Pour un serveur existant, utiliser ses identifiants actuels. Le rôle ne change pas ce mot de passe.
+
+- Pour modifier ensuite le fichier chiffré, utiliser `ansible-vault edit secrets.vault.yml` ; ne pas recopier le modèle par-dessus un Vault existant.
+
+- Le fichier n’est pas chargé automatiquement : ajouter `-e @secrets.vault.yml --ask-vault-pass` aux commandes qui en ont besoin.
+
 
 - `secrets.vault.yml` : Fichier de secrets du poste de contrôle, ignoré par Git.
 - La clé de session est requise même en mode `public`.
@@ -265,7 +288,7 @@ ansible-playbook playbooks/install.yml --tags check -e @site.yml --ask-become-pa
 | `-e @site.yml` | Charge les paramètres personnalisés du site depuis le poste de contrôle. |
 | `--ask-become-pass` | Demande le mot de passe sudo du compte SSH ; omettre si sudo est sans mot de passe. |
 
-- Le contrôle seul ne demande ni clé de session ni `.env`.
+- Le contrôle seul ne demande aucun secret applicatif. Si les mots de passe SSH/sudo sont stockés dans le Vault, le charger aussi pour cette commande.
 
 - Il vérifie notamment les droits sudo, le système cible, les paquets APT et l'accès aux dépôts Git.
 
@@ -299,7 +322,7 @@ ansible-playbook playbooks/install.yml -e @site.yml -e @secrets.vault.yml --ask-
 
 - Les passages suivants conservent les données et ajustent la configuration.
 
-- Un mot de passe modifié dans `.env` est appliqué à PostgreSQL et à l'entrepôt GeoServer.
+- Un mot de passe modifié dans `secrets.vault.yml` est appliqué à PostgreSQL et à l'entrepôt GeoServer.
 
 - À sources et paramètres inchangés, une nouvelle exécution permet de contrôler l'idempotence.
 
@@ -338,13 +361,13 @@ ansible-playbook playbooks/install.yml -e @site.yml -e @secrets.vault.yml --ask-
 
 - Définir alors `galaxy_public_scheme: https`.
 
-- Adapter les URL, ports, préfixes et identifiants aux paramètres de `site.yml`, de l'inventaire et de `.env`.
+- Adapter les URL, ports, préfixes et identifiants aux paramètres de `site.yml`, de l'inventaire et de `secrets.vault.yml`.
 
 - GeoServer utilise Java 21 et Jetty, avec une écoute locale sur `127.0.0.1:8080`.
 
 - Le rôle crée le workspace **`donnessig`**, le définit par défaut.
 
-- Configure l'entrepôt **`postgis`** vers **`donneessig`** avec **`usersig`** et le mot de passe du `.env`.
+- Configure l'entrepôt **`postgis`** vers **`donneessig`** avec **`usersig`** et le mot de passe du Vault `secrets.vault.yml`.
 
 - La connexion est vérifiée sans publier automatiquement de couche.
 
@@ -508,11 +531,11 @@ psql -h 127.0.0.1 -U usersig -d donneessig -W --command='SELECT PostGIS_Full_Ver
 |---|---|
 | `/srv/logs/geoserver/jetty.log` | Journal console de GeoServer pour diagnostiquer Java et Jetty. |
 | `-h 127.0.0.1` | Utilise une connexion TCP locale soumise aux règles `host` de `pg_hba.conf`. |
-| `-U usersig` | Se connecte avec le compte SQL configuré dans `POSTGRES_USER`. |
-| `-d donneessig` | Sélectionne la base configurée dans `POSTGRES_DB`. |
+| `-U usersig` | Se connecte avec le compte SQL configuré dans `postgres_username`. |
+| `-d donneessig` | Sélectionne la base configurée dans `postgres_database`. |
 | `SELECT PostGIS_Full_Version();` | Retourne la version de PostGIS et de ses bibliothèques dans la base sélectionnée. |
 
-- Adapter les identifiants si `.env` a été personnalisé.
+- Adapter les identifiants si `secrets.vault.yml` a été personnalisé.
 
 - Sauvegarder les données et secrets avant une mise à jour.
 
@@ -538,3 +561,5 @@ ansible-playbook playbooks/upgrade_mviewer.yml -e @site.yml --ask-become-pass
 | `--ask-become-pass` | Demande le mot de passe sudo utilisé pendant la mise à jour. |
 
 Ce playbook conserve les liens partagés et leurs données et ne demande pas les secrets de Studio ou de PostgreSQL.
+
+Pour migrer une ancienne configuration `.env` ou `group_vars/all.yml`, suivre [la procédure de migration](/mviewer-galaxy/guides/ansible/environnement/#migrer-une-installation-existante).

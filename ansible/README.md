@@ -32,8 +32,11 @@ Toutes les commandes suivantes s'exécutent depuis `ansible/` pour charger
 `ansible.cfg`. Modifier `inventories/dev/hosts.ini` : l'adresse `192.0.2.10`
 est un exemple sans serveur associé. Le groupe attendu est `galaxy`.
 
-Les valeurs communes sont dans `group_vars/all.yml`, chargé explicitement par
-le playbook. Pour les adapter sans modifier ces valeurs, créer un fichier
+Les variables sont réparties dans `group_vars/all/`, avec un fichier par
+application et `common.yml` pour les paramètres partagés. Ces fichiers sont
+chargés explicitement par les deux playbooks.
+
+Pour les adapter sans modifier ces valeurs, créer un fichier
 `site.yml` et le charger avec `-e @site.yml` :
 
 ```yaml
@@ -43,28 +46,93 @@ mviewer_version: master
 mviewerstudio_version: oauth2-proxy-keycloak
 ```
 
+| Fichier | Configuration |
+|---|---|
+| `group_vars/all/common.yml` | Comptes système, chemins partagés, paquets communs et schéma public |
+| `group_vars/all/mviewer.yml` | Sources, version et répertoires Mviewer |
+| `group_vars/all/mviewerstudio.yml` | Sources, chemins, port et paramètres OIDC publics de Studio |
+| `group_vars/all/nginx.yml` | Nom du serveur, port HTTP et journaux nginx |
+| `group_vars/all/postgres.yml` | Paquets, port, socket et paramètres PostgreSQL |
+| `group_vars/all/geoserver.yml` | Version, Java, chemins, réseau et catalogue GeoServer |
+| `secrets.vault.yml` | Identifiants et secrets chiffrés partagés par les applications |
+
 Les sources sont clonées sur la cible depuis les dépôts définis dans les
 variables ; les changements locaux des sous-modules ne sont pas transférés.
 Les branches par défaut correspondent à `.gitmodules`.
 
-Préparer aussi `.env` depuis `.env.example` et renseigner le mot de passe de la
-base SIG, puis adapter `roles/postgres/templates/pg_hba.conf.j2` avec les clients
-autorisés avant une installation complète (voir « PostgreSQL et PostGIS »).
+Adapter `roles/postgres/templates/pg_hba.conf.j2` avec les clients autorisés
+avant une installation complète (voir « PostgreSQL et PostGIS »).
 
 Préparer les secrets :
 
 ```bash
 cp secrets.example.yml secrets.vault.yml
+chmod 600 secrets.vault.yml
 # Modifier secrets.vault.yml avec les vraies valeurs avant chiffrement.
 python3 -c 'import secrets; print(secrets.token_hex(32))'
 ansible-vault encrypt secrets.vault.yml
 ```
 
+Renseigner aussi `postgres_password`, `geoserver_admin_username` et
+`geoserver_admin_password` dans ce fichier pour PostgreSQL et GeoServer.
 Utiliser la valeur générée pour `mviewerstudio_secret_key`, nécessaire dans les
-deux modes pour les sessions Flask. Le fichier `*.vault.yml` est ignoré par Git.
+deux modes pour les sessions Flask.
+
+Le fichier `*.vault.yml` est ignoré par Git.
+
 Le playbook refuse une clé de session absente et masque le rendu des secrets
 dans les sorties.
-Ne pas utiliser les valeurs d'exemple pour un déploiement réel.
+
+Attention : ne pas utiliser les valeurs d'exemple pour un déploiement réel.
+
+## Répartition des variables et secrets
+
+Un seul fichier `secrets.vault.yml` regroupe les données confidentielles du déploiement :
+
+| Usage | Variables dans le Vault |
+|---|---|
+| PostgreSQL / GeoServer | `postgres_database`, `postgres_username`, `postgres_password` |
+| Administration REST GeoServer | `geoserver_admin_username`, `geoserver_admin_password` |
+| Sessions Studio | `mviewerstudio_secret_key` |
+| OIDC facultatif | `mviewerstudio_oidc_client_secret`, et éventuellement `mviewerstudio_oidc_issuer`, `mviewerstudio_oidc_client_id` |
+| Connexion Ansible facultative | `ansible_password`, `ansible_become_password` |
+
+Les fichiers de `group_vars/all/` sont chargés explicitement via `vars_files`,
+même avec un inventaire personnalisé. Les variables `-e @site.yml` remplacent
+ces valeurs ; si plusieurs fichiers `-e @…` définissent une même variable, le
+dernier a priorité. Les paramètres internes de rotation restent dans
+`roles/logging/defaults/main.yml`.
+
+Créer le Vault une seule fois. Pour le modifier ensuite, utiliser
+`ansible-vault edit secrets.vault.yml` en conservant les secrets existants.
+Le suffixe `.vault.yml` ne chiffre pas le fichier et ne déclenche pas son
+chargement : utiliser `ansible-vault encrypt`, puis charger le fichier avec
+`-e @secrets.vault.yml --ask-vault-pass`. Le mot de passe Vault sert au
+déchiffrement ; les mots de passe PostgreSQL, GeoServer et sudo sont distincts.
+
+Les secrets n'ont aucune valeur par défaut dans les rôles ou `group_vars/all/`.
+Les ports, chemins, versions, URL publiques et noms de services restent dans
+`site.yml` ou les valeurs par défaut. Les rôles `check`, `common`, `mviewer`,
+`upgrade_mviewer`, `nginx` et `logging` ne définissent aucun secret applicatif.
+Ne pas placer de jeton dans une URL Git ; utiliser une authentification SSH adaptée
+si les dépôts deviennent privés.
+
+Ansible déchiffre le Vault lors de l'exécution. Sur la cible, Studio reçoit ses
+secrets via `/etc/mviewerstudio/environment`, réservé à root (`0600` dans un
+répertoire `0700`) ; son rendu est masqué et exclu de `--diff`. Les tâches de
+configuration PostgreSQL et GeoServer masquent également leurs secrets.
+Le Vault protège les sources sur le poste de contrôle ; les services conservent
+leurs propres mécanismes de stockage sur la cible.
+
+| Exécution | Secrets applicatifs nécessaires |
+|---|---|
+| Installation complète | PostgreSQL, compte REST GeoServer, clé de session Studio, et secret OIDC en mode `authlib` |
+| `--tags postgres` | `postgres_password` |
+| `--tags geoserver` | `postgres_password`, `geoserver_admin_username`, `geoserver_admin_password` |
+| `--tags check`, `upgrade_mviewer.yml` | Aucun secret applicatif |
+
+Si les mots de passe SSH/sudo sont dans le Vault, le charger aussi pour les
+contrôles ou mises à jour qui nécessitent ces identifiants de connexion.
 
 ## Authentification OIDC optionnelle
 
@@ -157,36 +225,42 @@ Sur une cible disposant déjà de Python et de dépôts APT configurés, install
 uniquement PostgreSQL et PostGIS :
 
 ```bash
-cp .env.example .env
-chmod 600 .env
-# Modifier .env et renseigner POSTGRES_PASSWORD avant de lancer Ansible.
+# Utiliser le Vault préparé ci-dessus et renseigner les identifiants PostgreSQL.
+ansible-vault edit secrets.vault.yml
 # Adapter roles/postgres/templates/pg_hba.conf.j2 avec les clients autorisés.
-ansible-playbook playbooks/install.yml --tags postgres --ask-become-pass
+ansible-playbook playbooks/install.yml --tags postgres -e @secrets.vault.yml --ask-vault-pass --ask-become-pass
 ```
 
-Le fichier `ansible/.env`, lu sur le poste de contrôle, configure la base SIG :
+Les variables de la base SIG sont partagées par PostgreSQL et GeoServer.
+Le modèle `secrets.example.yml` contient :
 
-```dotenv
-POSTGRES_DB=donneessig
-POSTGRES_USER=usersig
-POSTGRES_PASSWORD=
+```yaml
+postgres_database: donneessig
+postgres_username: usersig
+postgres_password: ""
 ```
 
-Renseigner le mot de passe : une valeur vide est refusée avant l'installation.
-Les noms par défaut sont `donneessig` et `usersig` si les deux premières clés
-sont omises. Les noms acceptent de 1 à 63 caractères minuscules, chiffres et
-underscores, sans chiffre initial. Le mot de passe est une valeur littérale,
-éventuellement entre guillemets simples ou doubles : les caractères `$`, `%`,
-`#` et `=` sont conservés, sans expansion de variables ni interprétation shell.
-Écrire les commentaires sur leurs propres lignes ; les valeurs sur plusieurs
-lignes ne sont pas prises en charge. Ne pas commiter ce fichier : `.env` et ses
-variantes sont ignorés par Git, seul `.env.example` sert de modèle.
+Renseigner un mot de passe non vide avant chiffrement. Les noms acceptent de
+1 à 63 caractères minuscules, chiffres et underscores, sans chiffre initial.
+Les valeurs sont des chaînes YAML ; les caractères spéciaux du mot de passe
+sont transmis sans interprétation shell. Les tâches et paramètres secrets sont masqués.
 
-Pour utiliser un autre fichier, ajouter par exemple
-`-e postgres_env_file=/chemin/production.env` à la commande. Cette configuration
-est requise pour le rôle `postgres`, y compris lors d'une installation complète.
-Le tag `check` seul n'en a pas besoin. Le rôle `geoserver` lit aussi ce fichier
-pour configurer son entrepôt PostGIS.
+Charger le Vault avec `-e @secrets.vault.yml --ask-vault-pass` pour les rôles
+`postgres` et `geoserver`, y compris lors d'une installation complète.
+Le tag `check` seul n'en a pas besoin. Pour un autre environnement, charger
+son fichier Vault avec `-e @/chemin/production.vault.yml --ask-vault-pass`.
+Modifier les valeurs avec `ansible-vault edit secrets.vault.yml`.
+
+Pour migrer les anciennes variables, reporter les adaptations de `group_vars/all.yml`
+et des anciens fichiers `roles/postgres/defaults/main.yml` et
+`roles/geoserver/defaults/main.yml` dans `site.yml`. Les valeurs fournies sont
+désormais dans `group_vars/all/common.yml` et les cinq fichiers applicatifs.
+
+Pour migrer une installation existante, reporter `POSTGRES_DB`, `POSTGRES_USER`
+et `POSTGRES_PASSWORD` de l'ancien `.env` dans `postgres_database`,
+`postgres_username` et `postgres_password`, puis chiffrer le Vault. Conserver
+les mêmes valeurs pour éviter de créer une autre base ou de changer le mot de passe.
+Après validation du déploiement avec le Vault, supprimer l'ancien `.env` local.
 
 Le rôle crée l'utilisateur SQL avec connexion autorisée, sans droits
 superutilisateur ni création de rôles ou de bases, puis la base dont il est
@@ -198,11 +272,11 @@ Le module local au rôle utilise `psql` et Python standard ; aucune collection
 Ansible ni bibliothèque Python PostgreSQL supplémentaire n'est nécessaire.
 
 Les passages suivants conservent la base et ses données, et ne changent le mot
-de passe que si sa valeur dans `.env` change. Les mots de passe sont stockés
+de passe que si sa valeur dans le Vault change. Les mots de passe sont stockés
 avec SCRAM-SHA-256 et les tâches contenant des secrets sont masquées.
 Changer le nom de base ou d'utilisateur crée les nouvelles ressources sans
-supprimer les anciennes ni transférer leurs données. En mode `--check`, le
-fichier `.env` est validé, mais le provisionnement SQL et les accès réseau sont ignorés.
+supprimer les anciennes ni transférer leurs données. En mode `--check`, les
+variables PostgreSQL sont validées, mais le provisionnement SQL et les accès réseau sont ignorés.
 
 Si la base existe déjà, son propriétaire est ajusté à l'utilisateur configuré.
 Les tables existantes conservent leurs propriétaires et leurs droits ; leur
@@ -211,7 +285,7 @@ migration éventuelle reste une opération distincte.
 ### Préparer pg_hba.conf avant l'installation
 
 Modifier `roles/postgres/templates/pg_hba.conf.j2` avant de lancer le rôle.
-Les IP autorisées se définissent dans ce template. Le fichier `.env` contient
+Les IP autorisées se définissent dans ce template. Le fichier Vault contient
 uniquement les noms et le mot de passe de la base SIG.
 
 Le template contient l'administration locale par `peer`, les connexions locales
@@ -222,7 +296,7 @@ Ajouter les clients autorisés avant les lignes `reject`, par exemple :
 host "{{ postgres_configuration.database }}" "{{ postgres_configuration.username }}" 192.0.2.10/32 scram-sha-256
 ```
 
-Conserver les variables Jinja : la base et l'utilisateur seront lus dans `.env`.
+Conserver les variables Jinja : la base et l'utilisateur seront lus dans le Vault.
 Le template remplace entièrement le fichier `pg_hba.conf` du serveur sélectionné
 par `postgres_port` : y reporter aussi les règles spécifiques à une installation
 existante. Un autre template peut être fourni via `postgres_hba_template` dans
@@ -251,18 +325,19 @@ par défaut du système. Il vérifie que la JVM utilisée est bien Java 21.
 
 Après démarrage, le rôle crée le workspace `donnessig`, le définit comme workspace
 par défaut, puis crée l'entrepôt PostGIS `postgis`. Celui-ci utilise la base et
-l'utilisateur de `.env` (`donneessig` / `usersig` par défaut), le schéma `public`
+l'utilisateur du Vault (`donneessig` / `usersig` par défaut), le schéma `public`
 et le même mot de passe. La connexion à PostgreSQL est vérifiée sans publication
 automatique de couches. Exécuter le rôle `postgres` avant `geoserver` pour
 préparer la base ; le playbook complet respecte cet ordre.
 
 Les variables `geoserver_workspace`, `geoserver_datastore`,
 `geoserver_postgres_host` et `geoserver_postgres_port` adaptent ce paramétrage.
-Les accès REST utilisent `geoserver_admin_username: admin` et le mot de passe
-initial `geoserver` de la distribution. Si le mot de passe administrateur a été
-changé, fournir sa valeur actuelle via `geoserver_admin_password`, par exemple
-dans le fichier Ansible Vault. Le rôle utilise ce compte et ne modifie pas son
-mot de passe.
+Les accès REST exigent `geoserver_admin_username` et `geoserver_admin_password`
+dans le Vault, dès la première installation. Renseigner les identifiants actuels
+du serveur (initialement `admin` / `geoserver` pour la distribution vierge).
+Après changement dans GeoServer, mettre à jour le Vault. Le rôle utilise ce
+compte et ne modifie pas son mot de passe. Une valeur absente ou vide est refusée
+avant l'installation des paquets, y compris en simulation.
 
 La configuration du catalogue passe par l'API REST, afin de conserver le
 chiffrement des mots de passe par GeoServer. Une empreinte protégée en mode
@@ -270,7 +345,7 @@ chiffrement des mots de passe par GeoServer. Une empreinte protégée en mode
 détecter les changements de mot de passe et d'éviter de réécrire l'entrepôt à
 chaque passage. Les autres workspaces et entrepôts sont conservés.
 
-Les paramètres du rôle sont dans `roles/geoserver/defaults/main.yml` et peuvent
+Les paramètres du rôle sont dans `group_vars/all/geoserver.yml` et peuvent
 être remplacés dans `site.yml`, par exemple :
 
 ```yaml
@@ -291,7 +366,7 @@ Pour installer uniquement GeoServer sur une cible disposant déjà de Python et
 de dépôts APT fournissant Java 21, lancer depuis `ansible/` :
 
 ```bash
-ansible-playbook playbooks/install.yml --tags geoserver -e @site.yml --ask-become-pass
+ansible-playbook playbooks/install.yml --tags geoserver -e @site.yml -e @secrets.vault.yml --ask-vault-pass --ask-become-pass
 ```
 
 Omettre `-e @site.yml` si ce fichier n'existe pas. Aucun secret Studio n'est

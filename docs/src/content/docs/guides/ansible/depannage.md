@@ -47,19 +47,26 @@ Une cible Docker destinée à tester ce playbook doit réellement exécuter syst
 
 - Le mode `--check` complet nécessite Python déjà installé.
 
-## Fichier .env ou secrets manquants
+## Fichier Vault ou secrets manquants
 
-- La tâche de validation PostgreSQL est masquée avec `no_log`.
+- Les tâches de validation utilisent `no_log` ; un échec masqué peut indiquer une variable obligatoire absente.
 
-- Vérifier sur le poste de contrôle que `.env` existe et contient un `POSTGRES_PASSWORD` non vide.
+- Ouvrir le fichier sur le poste de contrôle avec `ansible-vault edit secrets.vault.yml` et vérifier les valeurs nécessaires au rôle demandé.
 
-- Si un autre fichier est utilisé, vérifier `postgres_env_file` et ses droits de lecture.
+| Exécution | Secrets applicatifs requis |
+|---|---|
+| Installation complète | `postgres_password`, `geoserver_admin_username`, `geoserver_admin_password`, `mviewerstudio_secret_key` (32 caractères minimum) |
+| `--tags postgres` | `postgres_password` |
+| `--tags geoserver` | `postgres_password`, `geoserver_admin_username`, `geoserver_admin_password` |
+| `--tags check`, `upgrade_mviewer.yml` | Aucun secret applicatif |
 
-- Studio exige une `mviewerstudio_secret_key` d'au moins 32 caractères, même en mode `public`.
+- En mode `authlib`, l’installation complète exige aussi `mviewerstudio_oidc_client_secret`, l’identifiant client et l’URL de l’issuer.
 
-- Charger le fichier chiffré avec `-e @secrets.vault.yml` et `--ask-vault-pass`.
+- Charger le Vault avec `-e @secrets.vault.yml --ask-vault-pass`. Vérifier le chemin, les droits du fichier et le mot de passe Vault si le déchiffrement échoue.
 
-- En mode `authlib`, renseigner aussi l'issuer et les secrets OIDC.
+- Le mot de passe Vault déchiffre le fichier ; il est distinct des mots de passe PostgreSQL, GeoServer et sudo. Si les mots de passe SSH/sudo sont dans le Vault, le charger aussi pour les contrôles ou mises à jour qui en ont besoin.
+
+- Un mot de passe GeoServer absent est refusé avant l’installation des paquets, y compris avec `--check`. Renseigner les identifiants actuels du serveur ; le rôle ne fournit aucune valeur par défaut.
 
 ## Consulter les services et les journaux
 
@@ -134,8 +141,8 @@ sudo -u postgres psql --dbname=postgres --command='SELECT line_number, error FRO
 |---|---|
 | `sudo pg_lsclusters` | Affiche les versions, noms, ports, états et chemins des clusters PostgreSQL. |
 | `-h 127.0.0.1` | Utilise une connexion TCP locale soumise aux règles `host` de `pg_hba.conf`. |
-| `-U usersig` | Se connecte avec le compte SQL configuré dans `POSTGRES_USER`. |
-| `-d donneessig` | Sélectionne la base configurée dans `POSTGRES_DB`. |
+| `-U usersig` | Se connecte avec le compte SQL configuré dans `postgres_username`. |
+| `-d donneessig` | Sélectionne la base configurée dans `postgres_database`. |
 | `SELECT current_user;` | Affiche le compte SQL réellement connecté. |
 | `/srv/logs/postgresql/` | Répertoire contenant les journaux des clusters PostgreSQL. |
 | `postgres` | Compte Linux administrateur de PostgreSQL utilisé pour les contrôles locaux. |
@@ -145,7 +152,7 @@ sudo -u postgres psql --dbname=postgres --command='SELECT line_number, error FRO
 
 - Adapter les identifiants et ajouter le port si nécessaire.
 
-- Vérifier le mot de passe de `.env`, les règles du template `pg_hba.conf.j2` et le pare-feu.
+- Vérifier le mot de passe de `secrets.vault.yml`, les règles du template `pg_hba.conf.j2` et le pare-feu.
 
 - Les clients autorisés doivent apparaître avant les règles `reject` : la première règle correspondante décide de l'accès.
 
@@ -163,7 +170,7 @@ sudo -u postgres psql --dbname=postgres --command='SELECT line_number, error FRO
 
 - Une erreur HTTP 401 ou 403 indique notamment des identifiants administrateur à vérifier : `geoserver_admin_username` et `geoserver_admin_password` doivent correspondre au compte actuel de GeoServer.
 
-- Pour une erreur de connexion PostGIS, vérifier que le rôle `postgres` a été exécuté, que la base contient PostGIS, que les identifiants du `.env` sont corrects et que `pg_hba.conf` autorise l'adresse utilisée par GeoServer.
+- Pour une erreur de connexion PostGIS, vérifier que le rôle `postgres` a été exécuté, que la base contient PostGIS, que les identifiants du `secrets.vault.yml` sont corrects et que `pg_hba.conf` autorise l'adresse utilisée par GeoServer.
 
 - Vérifier aussi `geoserver_postgres_host` et `geoserver_postgres_port`.
 

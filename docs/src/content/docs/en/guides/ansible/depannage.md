@@ -47,19 +47,26 @@ A Docker target used to test this playbook must actually run systemd: the `check
 
 - Full `--check` mode requires Python to be installed already.
 
-## Missing .env or secrets
+## Missing Vault or secrets
 
-- The PostgreSQL validation task is hidden with `no_log`.
+- Validation tasks use `no_log`; a masked failure can indicate a missing required variable.
 
-- On the control machine, check that `.env` exists and contains a non-empty `POSTGRES_PASSWORD`.
+- Open the file on the control machine with `ansible-vault edit secrets.vault.yml` and check the required values for the requested role.
 
-- If you use another file, check `postgres_env_file` and its read permissions.
+| Execution | Required application secrets |
+|---|---|
+| Full installation | `postgres_password`, `geoserver_admin_username`, `geoserver_admin_password`, `mviewerstudio_secret_key` (at least 32 characters) |
+| `--tags postgres` | `postgres_password` |
+| `--tags geoserver` | `postgres_password`, `geoserver_admin_username`, `geoserver_admin_password` |
+| `--tags check`, `upgrade_mviewer.yml` | No application secrets |
 
-- Studio requires a `mviewerstudio_secret_key` at least 32 characters long, even in `public` mode.
+- In `authlib` mode, the full installation also requires `mviewerstudio_oidc_client_secret`, a client ID and the issuer URL.
 
-- Load the encrypted file with `-e @secrets.vault.yml` and `--ask-vault-pass`.
+- Load Vault with `-e @secrets.vault.yml --ask-vault-pass`. Check the file path, permissions and Vault password if decryption fails.
 
-- In `authlib` mode, also configure the issuer and OIDC secrets.
+- The Vault password decrypts the file; it is distinct from the PostgreSQL, GeoServer and sudo passwords. If SSH/sudo passwords are stored in Vault, load it even for checks or upgrades that need them.
+
+- A missing GeoServer password is rejected before package installation, including with `--check`. Populate the current server credentials; no default password is supplied by the role.
 
 ## Check services and logs
 
@@ -134,8 +141,8 @@ sudo -u postgres psql --dbname=postgres --command='SELECT line_number, error FRO
 |---|---|
 | `sudo pg_lsclusters` | Lists PostgreSQL cluster versions, names, ports, states and paths. |
 | `-h 127.0.0.1` | Uses a local TCP connection governed by `host` rules in `pg_hba.conf`. |
-| `-U usersig` | Connects using the SQL account configured in `POSTGRES_USER`. |
-| `-d donneessig` | Selects the database configured in `POSTGRES_DB`. |
+| `-U usersig` | Connects using the SQL account configured in `postgres_username`. |
+| `-d donneessig` | Selects the database configured in `postgres_database`. |
 | `SELECT current_user;` | Displays the SQL account actually connected. |
 | `/srv/logs/postgresql/` | Directory containing PostgreSQL cluster logs. |
 | `postgres` | PostgreSQL administrator Linux account used for local checks. |
@@ -145,7 +152,7 @@ sudo -u postgres psql --dbname=postgres --command='SELECT line_number, error FRO
 
 - Adapt the credentials and add the port if necessary.
 
-- Check the password in `.env`, the `pg_hba.conf.j2` template and the firewall.
+- Check the password in `secrets.vault.yml`, the `pg_hba.conf.j2` template and the firewall.
 
 - Allowed clients must appear before the `reject` rules: the first matching rule determines access.
 
@@ -163,7 +170,7 @@ sudo -u postgres psql --dbname=postgres --command='SELECT line_number, error FRO
 
 - HTTP 401 or 403 errors can indicate incorrect administrator credentials: `geoserver_admin_username` and `geoserver_admin_password` must match the current GeoServer account.
 
-- For a PostGIS connection error, check that the `postgres` role has run, the database contains PostGIS, `.env` credentials are correct and `pg_hba.conf` allows the address used by GeoServer.
+- For a PostGIS connection error, check that the `postgres` role has run, the database contains PostGIS, `secrets.vault.yml` credentials are correct and `pg_hba.conf` allows the address used by GeoServer.
 
 - Also check `geoserver_postgres_host` and `geoserver_postgres_port`.
 

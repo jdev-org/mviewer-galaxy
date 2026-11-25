@@ -23,9 +23,9 @@ next:
 | 1. [Check prerequisites](#install-prerequisites) | Prepare Ansible on the control machine and a target with systemd, Python 3.11+ and Java 21 available through APT. | An environment compatible with the roles. |
 | 2. [Configure SSH](#install-ssh) | Set the server address and SSH account with sudo in the inventory. | A reachable server in the `galaxy` group. |
 | 3. [Set site parameters](#install-site) | Create `site.yml` with the public domain and desired settings. | Deployment-specific configuration. |
-| 4. [Prepare the GIS database](#install-database) | Set the database, SQL user and password in `.env`. | Credentials shared by PostgreSQL and GeoServer. |
+| 4. [Prepare the GIS database](#install-database) | Set the database, SQL user and password in `secrets.vault.yml`. | Credentials shared by PostgreSQL and GeoServer. |
 | 5. [Prepare PostgreSQL access](#install-network) | Edit the `pg_hba.conf.j2` template with allowed clients. | Network rules ready before installation. |
-| 6. [Prepare secrets](#install-secrets) | Set the Studio session key and encrypt the secrets file with Vault. | Secrets available to the playbook. |
+| 6. [Prepare secrets](#install-secrets) | Set GeoServer credentials, the Studio key and optional OIDC secrets, then encrypt Vault. | Secrets available to the playbook. |
 | 7. [Check and deploy](#install-deployment) | Check prerequisites, then run the playbook with site settings and secrets. | Applications installed and services configured. |
 | 8. [Check applications](#install-applications) | Open public URLs and [inspect services and logs](#install-operations). | Home page, Mviewer, Studio and GeoServer available. |
 | 9. [Configure CORS if needed](#install-cors) | Allow client origins when maps query GeoServer from another origin. | Browser requests allowed for those clients. |
@@ -136,11 +136,9 @@ geoserver_datastore: postgis
 
 - Point its DNS record to the server.
 
-- Shared defaults are in `group_vars/all.yml`.
+- Variables are split between `group_vars/all/common.yml` and one file per application under `group_vars/all/`. Secrets belong in `secrets.vault.yml`.
 
-- Role defaults are in `roles/*/defaults/main.yml`.
-
-- Override them using `-e @site.yml`.
+- Both playbooks explicitly load all six files in `group_vars/all/`. Deployment overrides in `-e @site.yml` take precedence.
 
 - Sources are cloned from their Git repositories on the target.
 
@@ -154,40 +152,49 @@ geoserver_datastore: postgis
 
 - It does not configure a certificate.
 
+| File | Settings |
+|---|---|
+| `group_vars/all/common.yml` | System accounts, shared paths, common packages and public URL scheme |
+| `group_vars/all/mviewer.yml` | Git source and version, shared apps/store/public directories |
+| `group_vars/all/mviewerstudio.yml` | Git source and version, Gunicorn, paths and public OIDC settings |
+| `group_vars/all/nginx.yml` | Public server name, HTTP port and logs |
+| `group_vars/all/postgres.yml` | Packages, database and user defaults, port, socket and pg_hba template |
+| `group_vars/all/geoserver.yml` | Version, archive checksum, Java, paths, ports and PostGIS catalog |
+
 <div class="ansible-section-anchor" id="install-database"></div>
 
 ## Prepare the GIS database
 
 ```bash
-cp .env.example .env
-chmod 600 .env
+cp secrets.example.yml secrets.vault.yml
+chmod 600 secrets.vault.yml
 ```
 
-- `.env.example` / `.env`: Supplied example and local PostgreSQL credentials file to customize.
+- `secrets.example.yml` / `secrets.vault.yml`: Supplied example and local PostgreSQL credentials file to customize.
 
-Edit `.env` with the desired values and your own password:
+Edit `secrets.vault.yml` with the desired values and your own password:
 
-```dotenv
-POSTGRES_DB=donneessig
-POSTGRES_USER=usersig
-POSTGRES_PASSWORD=
+```yaml
+postgres_database: donneessig
+postgres_username: usersig
+postgres_password: ""
 ```
 
 | Element | Explanation |
 |---|---|
-| `POSTGRES_DB` | GIS database to create; `donneessig` is the default. |
-| `POSTGRES_USER` | SQL account owning the database and `public` schema; `usersig` is the default. |
-| `POSTGRES_PASSWORD` | Required SQL password to fill in; do not leave it empty. |
+| `postgres_database` | GIS database to create; `donneessig` is the default. |
+| `postgres_username` | SQL account owning the database and `public` schema; `usersig` is the default. |
+| `postgres_password` | Required SQL password to fill in; do not leave it empty. |
 
 - The password is required.
 
-- Values are read literally: no shell commands or variables are evaluated.
+- Values follow YAML syntax and are passed to the modules without shell interpretation.
 
-- Git ignores `.env`.
+- Git ignores `secrets.vault.yml`.
 
 - Ansible reads it on the control machine.
 
-- To use another file, add `-e postgres_env_file=/path/production.env`.
+- Load the encrypted file with `-e @secrets.vault.yml --ask-vault-pass`.
 
 - The role creates the SQL user, database and PostGIS.
 
@@ -211,7 +218,7 @@ host "{{ postgres_configuration.database }}" "{{ postgres_configuration.username
 
 - Replace `192.0.2.10/32` with the allowed client address or network.
 
-- Keep the Jinja variables: database and user names come from `.env`.
+- Keep the Jinja variables: database and user names come from `secrets.vault.yml`.
 
 - Configure the firewall to allow the intended connections to the PostgreSQL port.
 
@@ -219,25 +226,37 @@ For rule syntax and authentication methods, see the [PostgreSQL documentation on
 
 <div class="ansible-section-anchor" id="install-secrets"></div>
 
-## Prepare Studio secrets
+## Complete and encrypt the application Vault
 
 ```bash
-cp secrets.example.yml secrets.vault.yml
+# Use the file prepared for the GIS database.
 python3 -c 'import secrets; print(secrets.token_hex(32))'
 ```
 
 | Element | Explanation |
 |---|---|
 | `secrets.example.yml` / `secrets.vault.yml` | Supplied example and deployment secrets file to customize and encrypt. |
-| `mviewerstudio_secret_key` | Variable to set to the generated value for signing Studio sessions. |
+| `mviewerstudio_secret_key` | Random session key of at least 32 characters, required even in public mode. |
+| `geoserver_admin_username`, `geoserver_admin_password` | Current GeoServer REST credentials, required from the first installation; the role supplies no defaults. |
+| `mviewerstudio_oidc_client_secret` | OIDC client secret in `authlib` mode. |
+| `ansible_password`, `ansible_become_password` | Optional SSH/sudo passwords; keep these in Vault when needed. |
 
 - Set `mviewerstudio_secret_key` in `secrets.vault.yml` to the generated value.
+
+- Also set `geoserver_admin_username` and `geoserver_admin_password` to the current server credentials, including on the first installation.
 
 - Encrypt the file:
 
 ```bash
 ansible-vault encrypt secrets.vault.yml
 ```
+
+- A fresh GeoServer distribution initially uses `admin` / `geoserver`. For an existing server, use its current credentials. The role does not change this password.
+
+- Edit the encrypted file later with `ansible-vault edit secrets.vault.yml`; keep an existing Vault instead of replacing it with the template.
+
+- The file is not loaded automatically: add `-e @secrets.vault.yml --ask-vault-pass` to commands that need it.
+
 
 - `secrets.vault.yml`: Control-machine secrets file ignored by Git.
 - The session key is required even in `public` mode.
@@ -273,7 +292,7 @@ ansible-playbook playbooks/install.yml --tags check -e @site.yml --ask-become-pa
 | `-e @site.yml` | Loads custom site settings from the control machine. |
 | `--ask-become-pass` | Prompts for the SSH account sudo password; omit for passwordless sudo. |
 
-- The prerequisite check does not require a session key or `.env`.
+- The prerequisite check requires no application secrets. If SSH/sudo passwords are stored in Vault, load it for this command too.
 
 - It checks sudo privileges, the target system, APT packages and access to Git repositories.
 
@@ -307,7 +326,7 @@ ansible-playbook playbooks/install.yml -e @site.yml -e @secrets.vault.yml --ask-
 
 - Subsequent runs preserve data and reconcile the configuration.
 
-- Changing the password in `.env` updates PostgreSQL and the GeoServer store.
+- Changing the password in `secrets.vault.yml` updates PostgreSQL and the GeoServer store.
 
 - Repeating the playbook with unchanged sources and parameters lets you check idempotence.
 
@@ -346,11 +365,11 @@ ansible-playbook playbooks/install.yml -e @site.yml -e @secrets.vault.yml --ask-
 
 - Set `galaxy_public_scheme: https`.
 
-- Adapt URLs, ports, prefixes and credentials to `site.yml`, the inventory and `.env`.
+- Adapt URLs, ports, prefixes and credentials to `site.yml`, the inventory and `secrets.vault.yml`.
 
 - GeoServer runs on Java 21 and Jetty, listening locally on `127.0.0.1:8080`.
 
-- The role creates **`donnessig`** as the default workspace and configures the **`postgis`** store to connect to **`donneessig`** using **`usersig`** and the password from `.env`.
+- The role creates **`donnessig`** as the default workspace and configures the **`postgis`** store to connect to **`donneessig`** using **`usersig`** and the password from `secrets.vault.yml`.
 
 - The connection is checked without automatically publishing layers.
 
@@ -512,11 +531,11 @@ psql -h 127.0.0.1 -U usersig -d donneessig -W --command='SELECT PostGIS_Full_Ver
 |---|---|
 | `/srv/logs/geoserver/jetty.log` | GeoServer console log for diagnosing Java and Jetty. |
 | `-h 127.0.0.1` | Uses a local TCP connection governed by `host` rules in `pg_hba.conf`. |
-| `-U usersig` | Connects using the SQL account configured in `POSTGRES_USER`. |
-| `-d donneessig` | Selects the database configured in `POSTGRES_DB`. |
+| `-U usersig` | Connects using the SQL account configured in `postgres_username`. |
+| `-d donneessig` | Selects the database configured in `postgres_database`. |
 | `SELECT PostGIS_Full_Version();` | Returns PostGIS and library versions in the selected database. |
 
-- Adapt the credentials if you customized `.env`.
+- Adapt the credentials if you customized `secrets.vault.yml`.
 
 - Back up data and secrets before updates.
 
@@ -542,3 +561,5 @@ ansible-playbook playbooks/upgrade_mviewer.yml -e @site.yml --ask-become-pass
 | `--ask-become-pass` | Prompts for the sudo password used during the update. |
 
 This playbook preserves shared links and their data and does not require Studio or PostgreSQL secrets.
+
+To migrate an old `.env` or `group_vars/all.yml` configuration, follow [the migration procedure](/mviewer-galaxy/en/guides/ansible/environnement/#migrating-an-existing-installation).

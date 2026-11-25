@@ -1,0 +1,61 @@
+{
+    "app_conf": {
+        "studio_title": "Mviewer Studio — test Ansible",
+        "mviewer_version": "4.1",
+        "mviewerstudio_version": "4.3.1",
+        "api": "api/app",
+        "store_style_service": "api/style",
+        "mviewer_instance": "http://localhost:8088/mviewer/",
+        "publish_url": "http://localhost:8088/mviewer/?config=public/{{config}}.xml",
+        "conf_path_from_mviewer": "store/",
+        "mviewer_short_url": {
+            "used": false,
+            "apps_folder": "store",
+            "public_folder": "public"
+        },
+        "external_themes": {
+            "used": false,
+            "url": ""
+        },
+        "user_info": "api/user",
+        "proxy": "",
+        "user_info_visible": false,
+        "app_form_placeholders": {
+            "app_title": "Ma carte SIG",
+            "logo_url": "",
+            "help_file": "mviewer_help.html"
+        },
+        "map": {
+            "center": [
+                -307903.74898791354,
+                6141345.088741366
+            ],
+            "zoom": 7
+        },
+        "baselayers": {
+            "osm": {
+                "id": "osm",
+                "thumbgallery": "img/basemap/osm.png",
+                "title": "OSM",
+                "label": "OpenStreetMap classique",
+                "type": "OSM",
+                "url": "https://{a-c}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+                "attribution": "Données : les contributeurs d'<a href=\"https://www.openstreetmap.org/\" target=\"_blank\">OpenStreetMap </a><a href=\"https://www.openstreetmap.org/copyright\" target=\"_blank\">ODbL </a>"
+            }
+        },
+        "data_providers": {
+            "csw": [],
+            "wms": [
+                {
+                    "title": "GeoServer local — donnessig",
+                    "url": "/geoserver/donnessig/wms"
+                }
+            ]
+        },
+        "default_params": {
+            "layer": {
+                "info_format": "text/html"
+            }
+        }
+    }
+}
