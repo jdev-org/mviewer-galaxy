@@ -1,480 +1,450 @@
-# Déploiement Ansible
+# Installer Mviewer Galaxy avec Ansible
 
-Installation native sur Debian 12+ ou Ubuntu 22.04+ avec systemd : nginx sert
-Mviewer et relaie Studio vers Gunicorn sur `127.0.0.1:5007`. Studio fonctionne
-par défaut sans authentification (`mviewerstudio_auth_mode: public`). OIDC est
-optionnel, avec un fournisseur externe comme Keycloak. Le playbook n'installe
-ni Docker ni Keycloak.
+Suivre les étapes ci-dessous pour installer PostgreSQL/PostGIS, GeoServer,
+Mviewer, Mviewer Studio et nginx sur un serveur Debian ou Ubuntu avec systemd.
+Studio est accessible sans authentification par défaut ; l'étape 6 permet
+l'activation d'OIDC avec un fournisseur externe. Le playbook n'installe ni
+Docker ni Keycloak.
 
-Le rôle `postgres` installe également PostgreSQL, l'extension serveur PostGIS
-et ses outils en ligne de commande, puis active et démarre le service
-`postgresql`. Les versions sont celles des dépôts APT de la cible.
+Pour une installation existante, commencer par [migrer la configuration](#migrer-une-ancienne-configuration).
 
-Le rôle `geoserver` installe GeoServer avec son Jetty embarqué et Java 21,
-puis active son service systemd. Il écoute sur `127.0.0.1:8080` par défaut.
+## 1. Vérifier les prérequis
 
-## Préparer
+Préparer le poste de contrôle et le serveur cible :
 
-Ansible Core 2.16+ doit être disponible sur le poste de contrôle. La cible doit
-être accessible en SSH avec un compte root ou disposant de droits sudo, et avoir
-accès aux dépôts Git, APT et Python. Python >= 3.11 (`/usr/bin/python3`) doit être
-installé ou disponible dans les dépôts APT. S'il est absent, le rôle `common`
-l'installe avant d'utiliser les modules Ansible. Aucun module de collection
-externe n'est requis.
+| Emplacement | Prérequis |
+|---|---|
+| Poste de contrôle | Ansible Core 2.16+ |
+| Serveur cible | Debian 12+ ou Ubuntu 22.04+, avec systemd actif |
+| Connexion | Accès SSH avec root ou un compte disposant de sudo |
+| Python sur la cible | Python 3.11+ installé ou disponible dans les dépôts APT |
+| Java sur la cible | Paquet `openjdk-21-jre-headless` disponible dans APT |
+| Accès réseau de la cible | Dépôts Git, APT et Python, SourceForge et ses miroirs |
 
-Les dépôts APT doivent également fournir `openjdk-21-jre-headless`. Ce paquet
-n'est pas disponible dans les dépôts de base de toutes les versions ciblées,
-notamment Debian 12 : préparer un dépôt adapté ou utiliser une cible plus
-récente fournissant Java 21. Le rôle n'ajoute pas de dépôt APT. La cible doit
-aussi pouvoir télécharger l'archive GeoServer depuis SourceForge et ses miroirs.
+Le rôle `common` installe Python s'il est absent. Aucune collection Ansible
+externe ni bibliothèque Python PostgreSQL supplémentaire n'est nécessaire.
 
-Toutes les commandes suivantes s'exécutent depuis `ansible/` pour charger
-`ansible.cfg`. Modifier `inventories/dev/hosts.ini` : l'adresse `192.0.2.10`
-est un exemple sans serveur associé. Le groupe attendu est `galaxy`.
+Vérifier en particulier la disponibilité de Java 21 : certaines versions
+ciblées, dont Debian 12, nécessitent un dépôt adapté. Le rôle n'ajoute pas de
+dépôt APT. Sur Ubuntu, le dépôt `universe` doit être disponible pour PostGIS.
 
-Les variables sont réparties dans `group_vars/all/`, avec un fichier par
-application et `common.yml` pour les paramètres partagés. Ces fichiers sont
-chargés explicitement par les deux playbooks.
+Depuis la racine du dépôt, ouvrir le répertoire Ansible :
 
-Pour les adapter sans modifier ces valeurs, créer un fichier
-`site.yml` et le charger avec `-e @site.yml` :
+```bash
+cd ansible
+ansible --version
+```
+
+**Exécuter toutes les commandes Ansible de ce guide depuis `ansible/`**, afin de
+charger `ansible.cfg`, les rôles et les modules locaux. Les commandes de contrôle
+des services seront à exécuter sur le serveur cible.
+
+## 2. Renseigner le serveur dans l'inventaire
+
+Modifier `inventories/dev/hosts.ini` avec les paramètres de la cible :
+
+```ini
+[galaxy]
+production ansible_host=192.0.2.10 ansible_user=deploy
+```
+
+| Paramètre | Valeur à renseigner |
+|---|---|
+| `[galaxy]` | Conserver ce groupe, ciblé par les playbooks |
+| `production` | Alias libre pour identifier le serveur |
+| `ansible_host` | Remplacer `192.0.2.10` par l'adresse IP ou le domaine de la cible |
+| `ansible_user` | Remplacer `deploy` par le compte SSH disposant de sudo |
+| `ansible_port` | Ajouter ce paramètre si SSH n'écoute pas sur le port 22 |
+| `ansible_ssh_private_key_file` | Ajouter le chemin de la clé privée si nécessaire |
+
+Vérifier que le serveur apparaît dans le groupe `galaxy` :
+
+```bash
+ansible-inventory --graph
+```
+
+Pour utiliser un inventaire distinct, créer par exemple
+`inventories/production/hosts.ini`, puis ajouter
+`-i inventories/production/hosts.ini` à chaque commande Ansible du guide.
+
+## 3. Créer la configuration du site
+
+Créer `site.yml` dans le répertoire `ansible/` :
 
 ```yaml
 nginx_server_name: cartes.example.org
-# Utiliser des SHA Git ou des tags pour figer les versions déployées.
+nginx_http_port: 80
+galaxy_public_scheme: http
+mviewerstudio_auth_mode: public
+# Remplacer ces branches par des tags ou SHA pour figer le déploiement.
 mviewer_version: master
 mviewerstudio_version: oauth2-proxy-keycloak
 ```
 
-| Fichier | Configuration |
+Remplacer `cartes.example.org` par le domaine public du site et faire pointer
+son DNS vers le serveur. Adapter le port HTTP si un autre service utilise déjà
+le port 80.
+
+Pour une URL publique HTTPS, configurer un terminateur TLS devant nginx et
+mettre `galaxy_public_scheme: https`. Cette variable adapte les URL et les
+en-têtes transmis aux applications ; elle ne configure ni certificat ni écoute
+TLS. Restreindre alors l'accès HTTP au proxy de confiance.
+
+Pour personnaliser d'autres paramètres, consulter les fichiers suivants puis
+reporter les valeurs souhaitées dans `site.yml` :
+
+| Fichier | Paramètres disponibles |
 |---|---|
-| `group_vars/all/common.yml` | Comptes système, chemins partagés, paquets communs et schéma public |
-| `group_vars/all/mviewer.yml` | Sources, version et répertoires Mviewer |
-| `group_vars/all/mviewerstudio.yml` | Sources, chemins, port et paramètres OIDC publics de Studio |
-| `group_vars/all/nginx.yml` | Nom du serveur, port HTTP et journaux nginx |
-| `group_vars/all/postgres.yml` | Paquets, port, socket et paramètres PostgreSQL |
-| `group_vars/all/geoserver.yml` | Version, Java, chemins, réseau et catalogue GeoServer |
-| `secrets.vault.yml` | Identifiants et secrets chiffrés partagés par les applications |
+| `group_vars/all/common.yml` | Comptes système, chemins partagés, paquets communs, schéma public |
+| `group_vars/all/mviewer.yml` | Dépôt et version Git, répertoires apps/store/public |
+| `group_vars/all/mviewerstudio.yml` | Dépôt et version Git, Gunicorn, chemins, paramètres OIDC publics |
+| `group_vars/all/nginx.yml` | Nom du serveur, port HTTP, journaux |
+| `group_vars/all/postgres.yml` | Paquets, base et utilisateur par défaut, port, socket, template pg_hba |
+| `group_vars/all/geoserver.yml` | Version, empreinte de l'archive, Java, chemins, ports, catalogue PostGIS |
 
-Les sources sont clonées sur la cible depuis les dépôts définis dans les
-variables ; les changements locaux des sous-modules ne sont pas transférés.
-Les branches par défaut correspondent à `.gitmodules`.
+Les deux playbooks chargent explicitement ces six fichiers, même avec un autre
+inventaire. Les valeurs de `-e @site.yml` les remplacent. Si plusieurs fichiers
+`-e @…` définissent une même variable, le dernier a priorité.
 
-Adapter `roles/postgres/templates/pg_hba.conf.j2` avec les clients autorisés
-avant une installation complète (voir « PostgreSQL et PostGIS »).
+Les sources sont clonées sur la cible depuis les dépôts configurés. Les
+modifications locales des sous-modules ne sont pas transférées.
 
-Préparer les secrets :
+## 4. Préparer les accès PostgreSQL
 
-```bash
-cp secrets.example.yml secrets.vault.yml
-chmod 600 secrets.vault.yml
-# Modifier secrets.vault.yml avec les vraies valeurs avant chiffrement.
-python3 -c 'import secrets; print(secrets.token_hex(32))'
-ansible-vault encrypt secrets.vault.yml
-```
-
-Renseigner aussi `postgres_password`, `geoserver_admin_username` et
-`geoserver_admin_password` dans ce fichier pour PostgreSQL et GeoServer.
-Utiliser la valeur générée pour `mviewerstudio_secret_key`, nécessaire dans les
-deux modes pour les sessions Flask.
-
-Le fichier `*.vault.yml` est ignoré par Git.
-
-Le playbook refuse une clé de session absente et masque le rendu des secrets
-dans les sorties.
-
-Attention : ne pas utiliser les valeurs d'exemple pour un déploiement réel.
-
-## Répartition des variables et secrets
-
-Un seul fichier `secrets.vault.yml` regroupe les données confidentielles du déploiement :
-
-| Usage | Variables dans le Vault |
-|---|---|
-| PostgreSQL / GeoServer | `postgres_database`, `postgres_username`, `postgres_password` |
-| Administration REST GeoServer | `geoserver_admin_username`, `geoserver_admin_password` |
-| Sessions Studio | `mviewerstudio_secret_key` |
-| OIDC facultatif | `mviewerstudio_oidc_client_secret`, et éventuellement `mviewerstudio_oidc_issuer`, `mviewerstudio_oidc_client_id` |
-| Connexion Ansible facultative | `ansible_password`, `ansible_become_password` |
-
-Les fichiers de `group_vars/all/` sont chargés explicitement via `vars_files`,
-même avec un inventaire personnalisé. Les variables `-e @site.yml` remplacent
-ces valeurs ; si plusieurs fichiers `-e @…` définissent une même variable, le
-dernier a priorité. Les paramètres internes de rotation restent dans
-`roles/logging/defaults/main.yml`.
-
-Créer le Vault une seule fois. Pour le modifier ensuite, utiliser
-`ansible-vault edit secrets.vault.yml` en conservant les secrets existants.
-Le suffixe `.vault.yml` ne chiffre pas le fichier et ne déclenche pas son
-chargement : utiliser `ansible-vault encrypt`, puis charger le fichier avec
-`-e @secrets.vault.yml --ask-vault-pass`. Le mot de passe Vault sert au
-déchiffrement ; les mots de passe PostgreSQL, GeoServer et sudo sont distincts.
-
-Les secrets n'ont aucune valeur par défaut dans les rôles ou `group_vars/all/`.
-Les ports, chemins, versions, URL publiques et noms de services restent dans
-`site.yml` ou les valeurs par défaut. Les rôles `check`, `common`, `mviewer`,
-`upgrade_mviewer`, `nginx` et `logging` ne définissent aucun secret applicatif.
-Ne pas placer de jeton dans une URL Git ; utiliser une authentification SSH adaptée
-si les dépôts deviennent privés.
-
-Ansible déchiffre le Vault lors de l'exécution. Sur la cible, Studio reçoit ses
-secrets via `/etc/mviewerstudio/environment`, réservé à root (`0600` dans un
-répertoire `0700`) ; son rendu est masqué et exclu de `--diff`. Les tâches de
-configuration PostgreSQL et GeoServer masquent également leurs secrets.
-Le Vault protège les sources sur le poste de contrôle ; les services conservent
-leurs propres mécanismes de stockage sur la cible.
-
-| Exécution | Secrets applicatifs nécessaires |
-|---|---|
-| Installation complète | PostgreSQL, compte REST GeoServer, clé de session Studio, et secret OIDC en mode `authlib` |
-| `--tags postgres` | `postgres_password` |
-| `--tags geoserver` | `postgres_password`, `geoserver_admin_username`, `geoserver_admin_password` |
-| `--tags check`, `upgrade_mviewer.yml` | Aucun secret applicatif |
-
-Si les mots de passe SSH/sudo sont dans le Vault, le charger aussi pour les
-contrôles ou mises à jour qui nécessitent ces identifiants de connexion.
-
-## Authentification OIDC optionnelle
-
-En mode `public`, Studio est accessible sans connexion et aucun paramètre OIDC
-n'est requis ni écrit dans le fichier d'environnement.
-
-Pour activer OIDC, ajouter dans `site.yml` :
-
-```yaml
-mviewerstudio_auth_mode: authlib
-```
-
-Renseigner ensuite `mviewerstudio_oidc_issuer` et
-`mviewerstudio_oidc_client_secret` dans le fichier de secrets (avec
-`ansible-vault edit secrets.vault.yml` s'il est déjà chiffré). Le client utilise
-`mviewerstudio_oidc_client_id: mviewerstudio` par défaut. Ces paramètres sont
-vérifiés uniquement en mode `authlib`.
-
-Configurer dans Keycloak le client confidentiel `mviewerstudio`, son secret,
-le callback `https://cartes.example.org/mviewerstudio/auth/callback` (ou
-`http://` pour un test) et les URL de retour de déconnexion de Mviewer.
-Le préfixe peut changer via `mviewerstudio_url_prefix`. Les utilisateurs doivent
-avoir le groupe `MVIEWER_ACCESS` et le claim d'organisation attendu par Studio ;
-ces valeurs s'adaptent via les variables `mviewerstudio_oidc_*`.
-L'issuer et son endpoint de découverte doivent être accessibles depuis le serveur.
-
-## Contrôler les prérequis
-
-Le rôle `check` précède `common` et vérifie depuis la cible :
-
-- Les droits root effectifs, directement ou via sudo avec l'escalade Ansible.
-- Le système Debian 12+ ou Ubuntu 22.04+ avec systemd.
-- Python >= 3.11 s'il est installé, ou la version du paquet APT s'il est absent.
-- L'accès aux dépôts APT et le téléchargement de nginx et des dépendances
-  déclarées dans `galaxy_system_packages`, dont `python3-pip` et `python3-venv`,
-  ainsi que des paquets PostgreSQL/PostGIS déclarés dans `postgres_packages`.
-- La disponibilité de Java 21, des outils déclarés dans `geoserver_packages`
-  et de logrotate.
-- L'accès aux deux dépôts Git avec `git ls-remote`. Si Git est absent, ce contrôle
-  est différé après son installation par `common`, avant tout clonage.
-
-Pour lancer uniquement ces contrôles, sans clé de session ni secrets OIDC :
-
-```bash
-ansible-playbook playbooks/install.yml --tags check --ask-become-pass
-```
-
-Ajouter `-e @site.yml` pour vérifier les paramètres d'un déploiement personnalisé.
-Le rôle `check` ne modifie pas l'état installé ni les caches APT du système.
-Les index et les téléchargements sont isolés dans un répertoire temporaire,
-supprimé même en cas d'échec. Les hooks APT sont désactivés pour ces contrôles.
-Les vérifications réseau sont rejouées à chaque passage, y compris avec
-`--check`, et restent à `changed=0`. Les paquets déjà satisfaits par
-l'installation existante ne sont pas téléchargés à nouveau.
-Le contrôle Git peut donc rester différé lors d'une exécution limitée à `check`.
-L'installation Python via pip et l'authentification OIDC sont vérifiées lors
-des étapes d'installation et d'utilisation correspondantes.
-
-## Vérifier et déployer
-
-```bash
-ansible-inventory --graph
-ansible-playbook playbooks/install.yml --syntax-check
-ansible-playbook playbooks/install.yml -e @site.yml -e @secrets.vault.yml --ask-vault-pass --check --diff
-ansible-playbook playbooks/install.yml -e @site.yml -e @secrets.vault.yml --ask-vault-pass --ask-become-pass
-```
-
-Omettre `-e @site.yml` si ce fichier n'a pas été créé. Avec un autre inventaire,
-ajouter `-i inventories/production/hosts.ini`. Les paramètres personnalisés se
-passent avec `-e @site.yml`, car le playbook charge les valeurs communes via
-`vars_files`. Retirer `--ask-become-pass` si sudo ne demande pas de mot de passe.
-
-Le mode `--check` donne une prévision : il ignore les installations pip et les
-actions sur les services. La simulation complète nécessite Python déjà installé
-sur la cible ; le contrôle seul (`--tags check`) fonctionne aussi sans Python. Il ne vérifie pas le démarrage de l'application ni
-les dépendances Python. Les rechargements de nginx passent par `nginx -t`.
-Une nouvelle exécution met à jour les sources et les dépendances déclarées
-par Studio, et redémarre Studio si nécessaire. Le paquet local de Studio n'est
-réinstallé que si les sources changent ou s'il est absent du virtualenv. Les données ne sont pas effacées.
-
-## PostgreSQL et PostGIS
-
-Le rôle `postgres` est exécuté après `common` dans le playbook d'installation.
-Il utilise uniquement les modules intégrés à Ansible. Les paquets par défaut
-sont `postgresql`, `postgresql-postgis` et `postgis` ; la liste `postgres_packages`
-peut être remplacée dans `site.yml` si nécessaire. Sur Ubuntu, le dépôt
-`universe` doit être disponible pour PostGIS.
-
-Sur une cible disposant déjà de Python et de dépôts APT configurés, installer
-uniquement PostgreSQL et PostGIS :
-
-```bash
-# Utiliser le Vault préparé ci-dessus et renseigner les identifiants PostgreSQL.
-ansible-vault edit secrets.vault.yml
-# Adapter roles/postgres/templates/pg_hba.conf.j2 avec les clients autorisés.
-ansible-playbook playbooks/install.yml --tags postgres -e @secrets.vault.yml --ask-vault-pass --ask-become-pass
-```
-
-Les variables de la base SIG sont partagées par PostgreSQL et GeoServer.
-Le modèle `secrets.example.yml` contient :
-
-```yaml
-postgres_database: donneessig
-postgres_username: usersig
-postgres_password: ""
-```
-
-Renseigner un mot de passe non vide avant chiffrement. Les noms acceptent de
-1 à 63 caractères minuscules, chiffres et underscores, sans chiffre initial.
-Les valeurs sont des chaînes YAML ; les caractères spéciaux du mot de passe
-sont transmis sans interprétation shell. Les tâches et paramètres secrets sont masqués.
-
-Charger le Vault avec `-e @secrets.vault.yml --ask-vault-pass` pour les rôles
-`postgres` et `geoserver`, y compris lors d'une installation complète.
-Le tag `check` seul n'en a pas besoin. Pour un autre environnement, charger
-son fichier Vault avec `-e @/chemin/production.vault.yml --ask-vault-pass`.
-Modifier les valeurs avec `ansible-vault edit secrets.vault.yml`.
-
-Pour migrer les anciennes variables, reporter les adaptations de `group_vars/all.yml`
-et des anciens fichiers `roles/postgres/defaults/main.yml` et
-`roles/geoserver/defaults/main.yml` dans `site.yml`. Les valeurs fournies sont
-désormais dans `group_vars/all/common.yml` et les cinq fichiers applicatifs.
-
-Pour migrer une installation existante, reporter `POSTGRES_DB`, `POSTGRES_USER`
-et `POSTGRES_PASSWORD` de l'ancien `.env` dans `postgres_database`,
-`postgres_username` et `postgres_password`, puis chiffrer le Vault. Conserver
-les mêmes valeurs pour éviter de créer une autre base ou de changer le mot de passe.
-Après validation du déploiement avec le Vault, supprimer l'ancien `.env` local.
-
-Le rôle crée l'utilisateur SQL avec connexion autorisée, sans droits
-superutilisateur ni création de rôles ou de bases, puis la base dont il est
-propriétaire, le schéma `public` dont il est aussi propriétaire et l'extension
-PostGIS. Les identifiants sont distincts des comptes
-Linux et SSH. La configuration s'applique au serveur local sur le port
-`postgres_port` (5432 par défaut), via `postgres_socket_dir` (`/var/run/postgresql`).
-Le module local au rôle utilise `psql` et Python standard ; aucune collection
-Ansible ni bibliothèque Python PostgreSQL supplémentaire n'est nécessaire.
-
-Les passages suivants conservent la base et ses données, et ne changent le mot
-de passe que si sa valeur dans le Vault change. Les mots de passe sont stockés
-avec SCRAM-SHA-256 et les tâches contenant des secrets sont masquées.
-Changer le nom de base ou d'utilisateur crée les nouvelles ressources sans
-supprimer les anciennes ni transférer leurs données. En mode `--check`, les
-variables PostgreSQL sont validées, mais le provisionnement SQL et les accès réseau sont ignorés.
-
-Si la base existe déjà, son propriétaire est ajusté à l'utilisateur configuré.
-Les tables existantes conservent leurs propriétaires et leurs droits ; leur
-migration éventuelle reste une opération distincte.
-
-### Préparer pg_hba.conf avant l'installation
-
-Modifier `roles/postgres/templates/pg_hba.conf.j2` avant de lancer le rôle.
-Les IP autorisées se définissent dans ce template. Le fichier Vault contient
-uniquement les noms et le mot de passe de la base SIG.
-
-Le template contient l'administration locale par `peer`, les connexions locales
-de GeoServer et des exemples commentés pour ajouter des IP ou réseaux CIDR.
-Ajouter les clients autorisés avant les lignes `reject`, par exemple :
+Ouvrir `roles/postgres/templates/pg_hba.conf.j2` avant le déploiement.
+Conserver les règles d'administration locale et celles utilisées par GeoServer.
+Si des clients distants doivent accéder à PostgreSQL, ajouter leurs IP ou
+réseaux **avant les lignes `reject`**, par exemple :
 
 ```text
 host "{{ postgres_configuration.database }}" "{{ postgres_configuration.username }}" 192.0.2.10/32 scram-sha-256
 ```
 
-Conserver les variables Jinja : la base et l'utilisateur seront lus dans le Vault.
-Le template remplace entièrement le fichier `pg_hba.conf` du serveur sélectionné
-par `postgres_port` : y reporter aussi les règles spécifiques à une installation
-existante. Un autre template peut être fourni via `postgres_hba_template` dans
-`site.yml` (chemin absolu ou nom d'un template du rôle).
+Remplacer `192.0.2.10/32` par l'adresse du client autorisé. Conserver les variables
+Jinja : elles reprennent les noms de base et d'utilisateur validés par le rôle.
 
-Une tâche du rôle déploie ce fichier, vérifie sa syntaxe via PostgreSQL puis
-notifie son rechargement. `postgresql.conf` est également configuré avec
-`listen_addresses = '*'`. Le serveur écoute donc sur toutes ses interfaces ;
-les clients SIG admis sont ceux du template. Les changements d'écoute déclenchent
-le redémarrage du cluster actif concerné. Le pare-feu doit autoriser les connexions
-souhaitées au port PostgreSQL.
+Le template remplace entièrement le `pg_hba.conf` du serveur sélectionné par
+`postgres_port` : reporter les règles nécessaires d'une installation existante.
+Pour utiliser un autre template, définir `postgres_hba_template` dans `site.yml`.
 
-Pour vérifier la base créée :
+Le rôle configure `listen_addresses = '*'`. Adapter le pare-feu pour autoriser
+les connexions souhaitées au port PostgreSQL, **5432** par défaut. Les changements
+d'écoute entraînent le redémarrage du cluster actif concerné ; les règles
+`pg_hba.conf` sont validées puis rechargées.
+
+## 5. Renseigner et chiffrer les secrets
+
+### Créer le fichier une seule fois
+
+Pour une nouvelle installation :
 
 ```bash
-psql -h 127.0.0.1 -U usersig -d donneessig -W --command='SELECT PostGIS_Full_Version();'
-sudo systemctl status postgresql
+cp secrets.example.yml secrets.vault.yml
+chmod 600 secrets.vault.yml
 ```
 
-## GeoServer avec Jetty et Java 21
+Si le Vault existe déjà, conserver son contenu et l'ouvrir avec
+`ansible-vault edit secrets.vault.yml`.
 
-Le rôle `geoserver` utilise la distribution binaire officielle GeoServer
-`3.0.2`, qui inclut Jetty `12.1.14`. Il installe le JRE Java 21 via APT et
-utilise directement le binaire de ce paquet, indépendamment de la version Java
-par défaut du système. Il vérifie que la JVM utilisée est bien Java 21.
+### Renseigner les valeurs obligatoires
 
-Après démarrage, le rôle crée le workspace `donnessig`, le définit comme workspace
-par défaut, puis crée l'entrepôt PostGIS `postgis`. Celui-ci utilise la base et
-l'utilisateur du Vault (`donneessig` / `usersig` par défaut), le schéma `public`
-et le même mot de passe. La connexion à PostgreSQL est vérifiée sans publication
-automatique de couches. Exécuter le rôle `postgres` avant `geoserver` pour
-préparer la base ; le playbook complet respecte cet ordre.
+Générer une clé de session Studio sur le poste de contrôle :
 
-Les variables `geoserver_workspace`, `geoserver_datastore`,
-`geoserver_postgres_host` et `geoserver_postgres_port` adaptent ce paramétrage.
-Les accès REST exigent `geoserver_admin_username` et `geoserver_admin_password`
-dans le Vault, dès la première installation. Renseigner les identifiants actuels
-du serveur (initialement `admin` / `geoserver` pour la distribution vierge).
-Après changement dans GeoServer, mettre à jour le Vault. Le rôle utilise ce
-compte et ne modifie pas son mot de passe. Une valeur absente ou vide est refusée
-avant l'installation des paquets, y compris en simulation.
+```bash
+python3 -c 'import secrets; print(secrets.token_hex(32))'
+```
 
-La configuration du catalogue passe par l'API REST, afin de conserver le
-chiffrement des mots de passe par GeoServer. Une empreinte protégée en mode
-`0600`, dans `/var/cache/geoserver-downloads/postgis-catalog.json`, permet de
-détecter les changements de mot de passe et d'éviter de réécrire l'entrepôt à
-chaque passage. Les autres workspaces et entrepôts sont conservés.
+Ouvrir `secrets.vault.yml` dans l'éditeur et compléter les valeurs :
 
-Les paramètres du rôle sont dans `group_vars/all/geoserver.yml` et peuvent
-être remplacés dans `site.yml`, par exemple :
+| Variable | Valeur à renseigner |
+|---|---|
+| `postgres_database` | Base SIG à créer ; `donneessig` par défaut |
+| `postgres_username` | Propriétaire SQL de la base et du schéma `public` ; `usersig` par défaut |
+| `postgres_password` | Mot de passe SQL non vide, partagé avec GeoServer |
+| `geoserver_admin_username` | Compte administrateur REST actuel de GeoServer |
+| `geoserver_admin_password` | Mot de passe actuel de ce compte, obligatoire dès la première installation |
+| `mviewerstudio_secret_key` | Clé générée ci-dessus, d'au moins 32 caractères, requise même en mode `public` |
+
+Pour une distribution GeoServer vierge, renseigner ses identifiants initiaux
+`admin` / `geoserver`. Pour un serveur existant, utiliser ses identifiants
+actuels. Le rôle utilise ce compte sans changer son mot de passe.
+
+Les noms PostgreSQL acceptent de 1 à 63 caractères minuscules, chiffres et
+underscores, sans chiffre initial. Les mots de passe suivent la syntaxe YAML
+et sont transmis sans interprétation shell. Les comptes SQL sont distincts
+des comptes Linux et SSH.
+
+Si la connexion exige des mots de passe SSH ou sudo, les variables facultatives
+`ansible_password` et `ansible_become_password` peuvent également être placées
+dans le Vault. Conserver les clés SSH sur le poste de contrôle.
+
+### Chiffrer le fichier complété
+
+Après avoir enregistré les vraies valeurs :
+
+```bash
+ansible-vault encrypt secrets.vault.yml
+```
+
+Choisir et conserver le mot de passe Vault : il sert à déchiffrer le fichier et
+est distinct des mots de passe des services et de sudo. Pour toute modification
+ultérieure :
+
+```bash
+ansible-vault edit secrets.vault.yml
+```
+
+Les fichiers `*.vault.yml` sont ignorés par Git. Le suffixe ne chiffre pas le
+fichier et ne le charge pas automatiquement : les commandes de déploiement
+utiliseront `-e @secrets.vault.yml --ask-vault-pass`.
+
+Les tâches sensibles utilisent `no_log`. Sur la cible, Studio reçoit ses secrets
+via `/etc/mviewerstudio/environment`, réservé à root (`0600` dans un répertoire
+`0700`), dont le rendu est également exclu de `--diff`. Le Vault protège le
+fichier source sur le poste de contrôle ; les services utilisent leurs propres
+mécanismes de stockage sur la cible.
+
+## 6. Activer OIDC si nécessaire
+
+Pour conserver Studio sans authentification, laisser
+`mviewerstudio_auth_mode: public` et passer à l'étape 7.
+
+Pour activer OIDC, modifier `site.yml` :
 
 ```yaml
-geoserver_port: 8081
-geoserver_data_dir: /srv/data/geoserver/datadir
-geoserver_java_options:
-  - -Xms512m
-  - -Xmx2048m
-  - -Djava.awt.headless=true
-  - -XX:-UseBASE64Intrinsics
+mviewerstudio_auth_mode: authlib
 ```
 
-Le dernier paramètre Java applique la
-[mitigation publiée par GeoServer pour Java4Shell](https://geoserver.org/vulnerability/2026/11/18/java4shell-mitigation.html).
-Conserver Java à jour via les dépôts du système.
+Ouvrir le Vault avec `ansible-vault edit secrets.vault.yml`, puis renseigner
+`mviewerstudio_oidc_issuer` et `mviewerstudio_oidc_client_secret`. Le client utilise
+`mviewerstudio_oidc_client_id: mviewerstudio` par défaut ; adapter cette valeur si
+nécessaire. Les paramètres OIDC ne sont vérifiés et écrits qu'en mode `authlib`.
 
-Pour installer uniquement GeoServer sur une cible disposant déjà de Python et
-de dépôts APT fournissant Java 21, lancer depuis `ansible/` :
+Configurer le fournisseur externe, par exemple Keycloak :
+
+| Paramètre | Configuration attendue |
+|---|---|
+| Client | Client confidentiel `mviewerstudio`, avec le secret renseigné dans le Vault |
+| Callback | `https://cartes.example.org/mviewerstudio/auth/callback`, à adapter au domaine, au schéma et au préfixe |
+| Déconnexion | Autoriser les URL de retour vers Mviewer |
+| Accès utilisateur | Groupe `MVIEWER_ACCESS` par défaut |
+| Organisation | Claim attendu par `mviewerstudio_oidc_claims_mapping` |
+
+Vérifier que l'issuer et son endpoint de découverte sont accessibles depuis
+la cible. Les groupes, claims et scopes sont configurables avec les variables
+`mviewerstudio_oidc_*`.
+
+## 7. Contrôler la cible avant l'installation
+
+Depuis le poste de contrôle :
 
 ```bash
-ansible-playbook playbooks/install.yml --tags geoserver -e @site.yml -e @secrets.vault.yml --ask-vault-pass --ask-become-pass
+ansible-playbook playbooks/install.yml --syntax-check
+ansible-playbook playbooks/install.yml --tags check -e @site.yml --ask-become-pass
 ```
 
-Omettre `-e @site.yml` si ce fichier n'existe pas. Aucun secret Studio n'est
-nécessaire pour ce tag. Le contrôle `--tags check` vérifie les paquets APT ;
-le téléchargement de GeoServer et la validation de Java ont lieu à l'installation.
-En mode `--check`, l'extraction, l'initialisation des données, le rendu du service
-et les actions sur ce service sont ignorés car ils dépendent des fichiers installés.
+Le contrôle vérifie les droits root/sudo, le système et systemd, Python, les
+paquets APT (dont Java 21, PostgreSQL/PostGIS et logrotate) et l'accès aux dépôts
+Git. Si Git est absent, sa vérification est différée après son installation par
+`common`, avant le clonage.
 
-Les chemins par défaut sont :
+Le tag `check` fonctionne sans Python installé et ne demande aucun secret
+applicatif. Si les mots de passe SSH/sudo sont dans le Vault, ajouter
+`-e @secrets.vault.yml --ask-vault-pass` à la commande de contrôle.
 
-- `/opt/geoserver/3.0.2/` : distribution GeoServer et Jetty, appartenant à root.
-- `/srv/data/geoserver/datadir/` : catalogue, configuration, sécurité et données, appartenant au compte système `geoserver`.
-- `/srv/logs/geoserver/` : journaux applicatifs et sortie console de Jetty.
-- `/var/cache/geoserver/` : fichiers temporaires de la JVM et de Jetty.
-- `/var/cache/geoserver-downloads/` : archive téléchargée, vérifiée par SHA-256.
-- `/etc/systemd/system/geoserver.service` : unité systemd.
+Attendre un résultat sans échec avant de poursuivre. Le contrôle ne modifie pas
+l'état installé ni les caches APT : les téléchargements utilisent un répertoire
+temporaire supprimé en fin d'exécution. Les vérifications réseau sont rejouées
+à chaque passage, y compris avec `--check`, et restent à `changed=0`. Les paquets
+déjà satisfaits ne sont pas téléchargés à nouveau.
 
-Les données initiales sont copiées uniquement si le répertoire de données est
-vide (fichiers cachés compris). Tout répertoire déjà renseigné est conservé,
-même s'il ne contient pas de fichier `global.xml`. Les exécutions suivantes
-conservent le catalogue et sa configuration. Si la distribution demandée est déjà
-installée, le téléchargement et l'extraction sont ignorés, même si l'archive en
-cache a été supprimée. Le redémarrage est notifié uniquement si la distribution,
-les données initiales ou l'unité systemd changent.
-Sauvegarder le répertoire de données avant de changer de version.
-Pour changer de version, adapter ensemble `geoserver_version` et
-`geoserver_archive_checksum` avec le SHA-256 de la nouvelle archive officielle ;
-le nouveau logiciel sera installé dans son propre répertoire.
+## 8. Simuler puis déployer
 
-nginx publie GeoServer sous `/geoserver/`, vers `127.0.0.1:8080` par défaut.
-Le contexte `/geoserver` et les paramètres des requêtes OGC sont conservés.
-Le service GeoServer utilise les en-têtes du proxy pour construire les URL
-publiques ; `galaxy_public_scheme` choisit leur schéma HTTP ou HTTPS.
+### Simuler les changements
 
-Ouvrir `http://<nginx_server_name>/geoserver/` (adapter le port et le schéma).
-L'installation initiale utilise
-le compte GeoServer `admin` / `geoserver` fourni par la distribution : changer ce
-mot de passe dans l'interface avant de publier le service. Pour vérifier la cible :
+Si Python est déjà installé sur la cible :
 
 ```bash
-sudo systemctl status geoserver
-sudo tail -n 100 /srv/logs/geoserver/jetty.log
+ansible-playbook playbooks/install.yml -e @site.yml -e @secrets.vault.yml --ask-vault-pass --ask-become-pass --check --diff
+```
+
+La simulation ignore notamment les installations pip, le provisionnement SQL
+et les actions sur les services. Pour GeoServer, elle ignore l'extraction,
+l'initialisation des données et le rendu du service. Elle ne valide ni le
+démarrage des applications ni leurs dépendances Python.
+
+Si Python est absent, utiliser le contrôle de l'étape 7, puis lancer directement
+le déploiement pour permettre son installation.
+
+### Appliquer le déploiement
+
+```bash
+ansible-playbook playbooks/install.yml -e @site.yml -e @secrets.vault.yml --ask-vault-pass --ask-become-pass
+```
+
+| Option | Usage |
+|---|---|
+| `-e @site.yml` | Charger les paramètres du site |
+| `-e @secrets.vault.yml` | Charger les secrets chiffrés |
+| `--ask-vault-pass` | Demander le mot de passe de déchiffrement Vault |
+| `--ask-become-pass` | Demander le mot de passe sudo ; omettre si sudo n'en exige pas ou s'il est fourni dans le Vault |
+| `--check --diff` | Prévoir les changements et afficher les différences des tâches non masquées |
+
+Le playbook exécute les rôles dans cet ordre : `check`, `common`, `postgres`,
+`geoserver`, `mviewer`, `mviewerstudio`, `nginx`.
+
+Il crée la base SIG, son propriétaire et PostGIS, puis le workspace GeoServer
+`donnessig` et l'entrepôt `postgis`, connecté au schéma `public` de la base.
+La connexion SQL est vérifiée sans publier automatiquement de couches.
+
+Attendre un récapitulatif avec `failed=0` et `unreachable=0`, puis passer aux
+contrôles de l'étape 9. Une nouvelle exécution conserve les données et applique
+les changements de configuration et de sources ; elle peut mettre à jour les
+dépendances Studio et redémarrer les services concernés.
+
+## 9. Vérifier les services et ouvrir les applications
+
+Sur le **serveur cible**, vérifier les services et la base :
+
+```bash
+sudo systemctl status nginx mviewerstudio geoserver postgresql
+sudo nginx -t
+psql -h 127.0.0.1 -U usersig -d donneessig -W --command='SELECT PostGIS_Full_Version();'
+curl -I http://127.0.0.1:5007/mviewerstudio/
 curl -I http://127.0.0.1:8080/geoserver/web/
 ```
 
-## Mettre à jour Mviewer
+Adapter le compte SQL, la base, les ports et le préfixe si les valeurs par défaut
+ont été remplacées. Le mot de passe demandé par `psql` est `postgres_password`.
 
-Le rôle `upgrade_mviewer` déploie la valeur de `mviewer_version`. Pour cibler
-un tag, indiquer son nom exact dans `site.yml` (remplacer cet exemple) :
+Depuis le navigateur, ouvrir les URL suivantes en remplaçant `<serveur>` par
+le domaine configuré dans `nginx_server_name` :
 
-```yaml
-mviewer_version: vX.Y.Z
-```
+| Brique | URL ou adresse | Port par défaut | Version configurée |
+|---|---|---|---|
+| Accueil nginx | `http://<serveur>/home/` | 80 | Paquet APT de la cible |
+| Mviewer | `http://<serveur>/mviewer/` | 80 via nginx | Branche `master` |
+| Mviewer Studio | `http://<serveur>/mviewerstudio/` | 80 → 5007 local | Branche `oauth2-proxy-keycloak` |
+| GeoServer | `http://<serveur>/geoserver/web/` | 80 → 8080 local | 3.0.2 avec Java 21 |
+| PostgreSQL / PostGIS | `<serveur>:5432`, selon les accès autorisés | 5432 | Paquets APT de la cible |
 
-Puis lancer depuis `ansible/` :
+Studio et GeoServer écoutent sur `127.0.0.1`. nginx publie leurs URL ; `/`
+redirige vers `/home/`. Son site par défaut est désactivé, les autres sites sont
+conservés. Adapter le schéma et le port des URL si HTTPS ou un autre port HTTP
+a été configuré.
 
-```bash
-ansible-playbook playbooks/upgrade_mviewer.yml -e @site.yml --ask-become-pass
-```
+Dans Studio, vérifier l'enregistrement et la publication d'une carte. En mode
+`authlib`, vérifier d'abord la redirection vers le fournisseur OIDC et la connexion.
 
-Ou passer directement le tag en ligne de commande :
+Dans GeoServer, vérifier le workspace `donnessig` et l'entrepôt `postgis`.
+Sur une installation vierge, changer le mot de passe initial dans l'interface
+avant de publier le service, puis mettre à jour `geoserver_admin_password` dans
+le Vault pour les prochaines exécutions.
 
-```bash
-ansible-playbook playbooks/upgrade_mviewer.yml -e mviewer_version=vX.Y.Z --ask-become-pass
-```
+En cas d'échec, consulter le [guide de dépannage](../docs/src/content/docs/guides/ansible/depannage.md).
 
-Aucun secret Studio ou OIDC n'est nécessaire. Le module Git récupère les
-références nécessaires et effectue le checkout de la version demandée ; un tag
-est déployé en HEAD détachée. Il est possible de passer d'un tag à un autre,
-y compris de revenir à un tag précédent. La variable accepte aussi une branche
-ou un SHA, comme à l'installation.
+## Mettre à jour une installation
 
-Le rôle prévoit le changement avant de retirer les liens partagés (`apps`,
-`store`, `public` par défaut). Si la version demandée est déjà déployée, les liens
-restent en place et aucun changement n'est effectué. Sinon, les liens sont
-retirés pendant le déploiement puis restaurés vers leurs destinations initiales
-dans un bloc `always`, même si le déploiement
-échoue. Les données partagées sont conservées. Les modifications locales des
-sources ne sont pas écrasées (`force: false`). Avec `--check`, le rôle consulte
-le dépôt distant et prévoit les changements sans modifier l'installation.
+### Déployer une autre version de Mviewer
 
-## Données et accès
+1. Sauvegarder les données et le Vault.
+2. Modifier `mviewer_version` dans `site.yml` avec un tag exact, une branche ou
+   un SHA. Exemple à remplacer :
 
-- `/var/www/mviewergalaxy/mviewer/` : sources de Mviewer.
-- `/var/www/mviewergalaxy/home/` : page d'accueil statique, servie sous `/home/`.
-- `/srv/apps/mviewerstudio/` : sources de Studio et environnement virtuel Python dans `.venv/`.
-- `/srv/data/geoserver/datadir/` : données et configuration GeoServer.
-- `/srv/data/mviewer/apps/` : cartes Mviewer.
-- `/srv/data/mviewer/store/` : cartes générées par Studio.
-- `/srv/data/mviewer/public/` : cartes publiées par Studio, copiées depuis `store` lors de la publication.
-- `/srv/logs/` : journaux, dans un répertoire par application, avec logrotate.
-- `/var/lib/mviewer-galaxy/sessions/` : sessions privées de Studio.
-- `/var/lib/mviewer-galaxy/mviewerstudio-config.json` : configuration front adaptée, servie par nginx.
-- `/etc/mviewerstudio/environment` : variables et secrets, accès root uniquement.
-- `/etc/systemd/system/mviewerstudio.service` : Gunicorn exécuté depuis le virtualenv de `/srv/apps/mviewerstudio/`.
+   ```yaml
+   mviewer_version: vX.Y.Z
+   ```
 
-Les trois répertoires sont partagés comme des volumes Docker. Des liens sont
-créés sous `/var/www/mviewergalaxy/mviewer/` :
+3. Depuis le poste de contrôle, lancer :
 
-| Lien dans Mviewer | Destination par défaut | Usage |
-|---|---|---|
-| `apps` | `/srv/data/mviewer/apps` | Configurations générales |
-| `store` | `/srv/data/mviewer/store` | Enregistrements et prévisualisations Studio |
-| `public` | `/srv/data/mviewer/public` | Publications Studio |
+   ```bash
+   ansible-playbook playbooks/upgrade_mviewer.yml -e @site.yml --ask-become-pass
+   ```
 
-nginx sert les mêmes répertoires sous `/mviewer/apps/`, `/mviewer/store/` et
-`/mviewer/public/`, ainsi que sous `/apps/`, `/store/` et `/public/`.
-Le paramètre `config` désigne un fichier XML dans le dossier choisi :
+4. Vérifier la carte et les données partagées dans Mviewer.
+
+Ce playbook ne demande aucun secret applicatif. Ajouter le Vault s'il contient
+les mots de passe de connexion SSH/sudo. Ajouter `--check` pour une prévision.
+Un tag est déployé en HEAD détachée ; revenir à un ancien tag est possible.
+
+Le rôle conserve les liens `apps`, `store`, `public` si la version est déjà
+déployée. Sinon, il les retire temporairement puis les restaure même en cas
+d'échec. Les sources modifiées localement ne sont pas écrasées (`force: false`).
+
+### Modifier les identifiants PostgreSQL
+
+1. Ouvrir `ansible-vault edit secrets.vault.yml` et modifier `postgres_password`.
+2. Rejouer le déploiement complet de l'étape 8 pour mettre à jour PostgreSQL
+   et l'entrepôt GeoServer avec la même valeur.
+3. Vérifier la connexion SQL et l'entrepôt dans GeoServer.
+
+Les mots de passe SQL sont stockés avec SCRAM-SHA-256 et ne sont changés que
+si la valeur du Vault change. Modifier le nom de la base ou de l'utilisateur
+crée de nouvelles ressources sans supprimer les anciennes ni migrer leurs
+données. Les tables existantes conservent leurs propriétaires et leurs droits.
+
+### Changer de version GeoServer
+
+1. Sauvegarder le répertoire de données GeoServer.
+2. Modifier ensemble `geoserver_version` et `geoserver_archive_checksum` dans
+   `site.yml`, avec le SHA-256 de la nouvelle archive officielle.
+3. Vérifier la compatibilité des données et de Java avec la version choisie.
+4. Rejouer le déploiement complet puis contrôler le service et le catalogue.
+
+La distribution est installée dans son propre répertoire. Le rôle conserve le
+catalogue existant et initialise les données uniquement si le répertoire est
+vide, fichiers cachés compris. Une distribution déjà installée n'est pas
+retéléchargée. Conserver les options Java de `group_vars/all/geoserver.yml`
+lorsqu'une liste personnalisée les remplace.
+
+## Exécuter uniquement PostgreSQL ou GeoServer
+
+1. Préparer la cible avec Python installé et les dépôts APT nécessaires.
+2. Suivre les étapes 2 à 5 pour l'inventaire, le site, les accès SQL et le Vault.
+3. Installer PostgreSQL/PostGIS :
+
+   ```bash
+   ansible-playbook playbooks/install.yml --tags postgres -e @site.yml -e @secrets.vault.yml --ask-vault-pass --ask-become-pass
+   ```
+
+4. Si nécessaire, installer ensuite GeoServer, dont la base PostGIS doit déjà
+   être disponible :
+
+   ```bash
+   ansible-playbook playbooks/install.yml --tags geoserver -e @site.yml -e @secrets.vault.yml --ask-vault-pass --ask-become-pass
+   ```
+
+| Exécution | Secrets applicatifs requis |
+|---|---|
+| `--tags postgres` | `postgres_password` |
+| `--tags geoserver` | `postgres_password`, `geoserver_admin_username`, `geoserver_admin_password` |
+| Installation complète | Identifiants SQL et GeoServer, clé Studio, secret OIDC si `authlib` |
+| `--tags check`, `upgrade_mviewer.yml` | Aucun ; charger le Vault si les mots de passe SSH/sudo s'y trouvent |
+
+Les tags `postgres` et `geoserver` n'exigent pas les secrets Studio. Pour un
+autre environnement, sélectionner son inventaire et son Vault avec
+`-i inventories/production/hosts.ini -e @/chemin/production.vault.yml --ask-vault-pass`.
+
+## Retrouver les données et consulter les journaux
+
+Sur la cible, utiliser les chemins suivants (valeurs par défaut) :
+
+| Chemin | Contenu |
+|---|---|
+| `/var/www/mviewergalaxy/home/` | Accueil statique |
+| `/var/www/mviewergalaxy/mviewer/` | Sources Mviewer |
+| `/srv/apps/mviewerstudio/` | Sources Studio et virtualenv `.venv/`, appartenant à root |
+| `/srv/data/mviewer/apps/` | Configurations des cartes |
+| `/srv/data/mviewer/store/` | Cartes enregistrées et prévisualisations Studio |
+| `/srv/data/mviewer/public/` | Cartes publiées par Studio |
+| `/srv/data/geoserver/datadir/` | Catalogue, sécurité et données GeoServer |
+| `/var/lib/mviewer-galaxy/` | Sessions Studio et configuration front `mviewerstudio-config.json` |
+| `/etc/mviewerstudio/environment` | Secrets et variables d'environnement Studio, accès root |
+| `/srv/logs/<application>/` | Journaux nginx, Studio, GeoServer et PostgreSQL |
+
+Les liens `apps`, `store` et `public` sous Mviewer pointent vers les répertoires
+partagés. nginx les sert sous `/mviewer/<nom>/` et `/<nom>/`. Pour ouvrir une
+carte, indiquer le chemin d'un fichier XML existant :
 
 ```text
 /mviewer/?config=apps/ma-carte.xml
@@ -482,107 +452,63 @@ Le paramètre `config` désigne un fichier XML dans le dossier choisi :
 /mviewer/?config=public/ma-carte.xml
 ```
 
-Adapter les chemins aux fichiers réellement présents. Un nom de répertoire
-seul (`?config=store`, par exemple) ne désigne pas une configuration XML.
+Le compte système `mviewer` écrit dans les données et les journaux Studio.
+Les sources et son virtualenv restent la propriété de root. La configuration
+front est adaptée sans modifier les sources Git et servie sous
+`/mviewerstudio/config.json`.
 
-Les destinations et les noms de `store` et `public` sont configurables dans
-`site.yml`, par exemple :
-
-```yaml
-mviewer_apps_dir: /srv/data/mviewer/apps
-mviewer_store_name: brouillons
-mviewer_store_dir: /srv/data/mviewer/brouillons
-mviewer_public_name: cartes
-mviewer_public_dir: /srv/data/mviewer/cartes
-```
-
-Avec cet exemple, les liens et URL deviennent `mviewer/brouillons` et
-`mviewer/cartes`. Les chemins du backend Studio, ses URL de prévisualisation et
-de publication et les permissions systemd suivent ces variables. La configuration
-front est générée à partir du fichier fourni par Studio et servie par nginx sur
-`/mviewerstudio/config.json`, sans modifier les sources Git.
-
-Un dossier existant à l'emplacement d'un lien est déplacé sans perte de contenu
-hors du dépôt, dans `<mviewer_install_dir>.<nom>-backup`. Pour `apps`, ce chemin
-reste configurable via `mviewer_apps_backup_dir`. Une sauvegarde existante
-n'est jamais écrasée. Lors d'une migration, récupérer les fichiers souhaités
-depuis ces sauvegardes ou depuis les anciens dossiers `apps/store` et
-`apps/public` vers leurs nouvelles destinations. Changer les variables ne
-déplace pas automatiquement les données existantes.
-
-Pour une installation utilisant les anciens chemins, sauvegarder puis migrer
-les données de `/var/lib/geoserver/` vers `/srv/data/geoserver/datadir/` en
-conservant les droits du compte `geoserver`, avant de démarrer le service avec
-les nouveaux paramètres. Les sources Mviewer seront clonées au nouvel
-emplacement ; récupérer aussi les éventuels fichiers locaux de l'ancien
-`/opt/mviewer-galaxy/mviewer/`. Le playbook ne supprime pas ces anciens dossiers.
-
-Git exclut ces répertoires via `sparse-checkout` afin de préserver les liens et
-les données pendant les mises à jour. Les exécutions suivantes conservent les
-liens et les sauvegardes sans changement. Lors d’un changement de nom, les anciens
-liens et leurs exclusions Git sont conservés pour préserver les accès existants.
-
-Le compte système `mviewer` (groupe `mviewer`) exécute Gunicorn et écrit dans
-les données et les journaux de Studio ; les sources et le
-virtualenv appartiennent à root. Les répertoires partagés, y compris `store`,
-sont servis par nginx comme dans la composition Docker.
-Sauvegarder le répertoire de données et les secrets avant une mise à jour.
-
-Mviewer est accessible sur `/mviewer/`, Studio sur `/mviewerstudio/`,
-GeoServer sur `/geoserver/`, et `/`
-redirige vers l'accueil `/home/`. Le site nginx par défaut est désactivé ; les autres sites
-existants sont conservés. Adapter le port si une autre stack écoute déjà dessus.
-
-nginx écoute en HTTP. Pour une URL publique HTTPS, placer un terminateur TLS
-devant lui et définir `galaxy_public_scheme: https`. Ce paramètre fixe le schéma
-transmis à Studio ; il n'active pas TLS. Avec OIDC, les callbacks doivent utiliser
-le même schéma et le même nom public. Restreindre alors l'accès au port HTTP
-au proxy de confiance.
-
-Sur la cible, vérifier le fonctionnement :
+Pour diagnostiquer un problème sur la cible :
 
 ```bash
-sudo systemctl status mviewerstudio nginx
+sudo journalctl -u mviewerstudio -u geoserver -n 100 --no-pager
+sudo tail -n 100 /srv/logs/nginx/error.log
 sudo tail -n 100 /srv/logs/mviewerstudio/error.log
-sudo nginx -t
-curl -I http://localhost/home/
-curl -I http://localhost/mviewer/
-curl -I http://localhost/mviewerstudio/
-```
-
-En mode `public`, Studio s'ouvre sans connexion. En mode `authlib`, une session
-anonyme doit être redirigée vers le fournisseur OIDC. Adapter l'URL et le port à `nginx_server_name` et `nginx_http_port`, puis vérifier dans le
-navigateur la connexion, l'enregistrement et la publication d'une carte.
-
-## Journaux et rotation
-
-Chaque application configure le rôle partagé `logging` :
-
-| Répertoire | Journaux |
-|---|---|
-| `/srv/logs/nginx/` | `access.log`, `error.log`, y compris les journaux globaux de nginx |
-| `/srv/logs/mviewerstudio/` | `access.log`, `error.log` de Gunicorn, `application.log` pour stdout/stderr |
-| `/srv/logs/geoserver/` | `geoserver.log`, `jetty.log` pour stdout/stderr de Java |
-| `/srv/logs/postgresql/` | `postgresql-<version>-<cluster>.log` |
-
-Mviewer et l'accueil sont statiques : leurs accès figurent dans les journaux
-nginx. Les messages de cycle de vie des unités restent accessibles via
-`journalctl`. Les anciens journaux sous `/var/log/` sont conservés.
-
-Le rôle installe logrotate et active `logrotate.timer`. La rotation est
-quotidienne, avec 14 archives conservées, compression différée et absence de
-rotation des fichiers vides. `logging_rotate` permet d'adapter cette rétention.
-Les règles nginx et PostgreSQL remplacent celles des paquets ; celles de Studio
-et GeoServer se trouvent dans `/etc/logrotate.d/mviewer-galaxy-<application>`.
-`copytruncate` conserve les descripteurs ouverts sans redémarrer les applications ;
-quelques lignes peuvent être perdues entre la copie et la troncature.
-
-Pour PostgreSQL, le lien `log` de chaque cluster pointe vers le nouveau dossier,
-avec `logging_collector = off` et `log_destination = 'stderr'` dans un bloc
-Ansible. Seuls les clusters actifs dont la configuration ou le lien change sont
-redémarrés. Les données SQL restent à leur emplacement de la distribution.
-
-```bash
+sudo tail -n 100 /srv/logs/geoserver/jetty.log
+sudo ls /srv/logs/postgresql/
 sudo logrotate --debug /etc/logrotate.conf
 sudo systemctl status logrotate.timer
 ```
+
+La rotation quotidienne conserve 14 archives par défaut. Pour changer cette
+rétention, ajouter `logging_rotate` dans `site.yml` puis rejouer le déploiement.
+Les valeurs internes du rôle sont dans `roles/logging/defaults/main.yml`.
+`copytruncate` conserve les fichiers ouverts sans redémarrer les applications ;
+quelques lignes peuvent être perdues pendant la rotation. Pour PostgreSQL, les
+liens de journaux sont gérés par cluster ; seuls les clusters actifs concernés
+par un changement sont redémarrés.
+
+## Migrer une ancienne configuration
+
+1. Sauvegarder les données existantes et les secrets.
+2. Reporter les adaptations de `group_vars/all.yml` et des anciens fichiers
+   `roles/postgres/defaults/main.yml` et `roles/geoserver/defaults/main.yml` dans
+   `site.yml`. Les valeurs fournies sont désormais réparties par application
+   sous `group_vars/all/`.
+3. Reporter les identifiants de l'ancien `.env` dans le Vault :
+
+   | Ancienne clé | Variable Vault |
+   |---|---|
+   | `POSTGRES_DB` | `postgres_database` |
+   | `POSTGRES_USER` | `postgres_username` |
+   | `POSTGRES_PASSWORD` | `postgres_password` |
+
+4. Conserver les noms SQL, les mots de passe actuels et la clé de session Studio.
+   Fournir les identifiants actuels de GeoServer ; le rôle n'a plus de mot de
+   passe administrateur par défaut. Chiffrer le Vault selon l'étape 5.
+5. Si les chemins de données changent, déplacer les données avant le déploiement
+   en conservant leurs propriétaires. Par exemple, migrer `/var/lib/geoserver/`
+   vers `/srv/data/geoserver/datadir/` avec les droits du compte `geoserver`.
+6. Rejouer les étapes 7 à 9 avec le Vault et les paramètres du site.
+7. Après validation, supprimer l'ancien `.env` local.
+
+Lorsqu'un dossier occupe l'emplacement d'un lien partagé, le playbook le déplace
+vers `<mviewer_install_dir>.<nom>-backup` sans écraser une sauvegarde existante.
+Récupérer les cartes souhaitées depuis ces sauvegardes ou les anciens dossiers
+`apps/store` et `apps/public`. Changer un chemin ne déplace pas les données.
+Les anciens répertoires et liens renommés sont conservés ; Git utilise
+`sparse-checkout` pour préserver les répertoires partagés lors des mises à jour.
+
+Pour personnaliser les noms de `store` et `public`, les chemins ou les ports,
+consulter le [guide d'adaptation à l'environnement](../docs/src/content/docs/guides/ansible/environnement.md).
+Le [guide d'installation détaillé](../docs/src/content/docs/guides/installation-ansible.md)
+couvre également les accès aux applications et CORS.
