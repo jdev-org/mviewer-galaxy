@@ -4,12 +4,17 @@
   become: true
   gather_facts: false
   vars_files:
-    - ../group_vars/all.yml
+    - ../group_vars/all/common.yml
+    - ../group_vars/all/mviewer.yml
+    - ../group_vars/all/mviewerstudio.yml
+    - ../group_vars/all/nginx.yml
+    - ../group_vars/all/postgres.yml
+    - ../group_vars/all/geoserver.yml
   pre_tasks:
     - name: Vérifier les paramètres du déploiement
       ansible.builtin.assert:
         that:
-          - mviewerstudio_secret_key | length >= 32
+          - mviewerstudio_secret_key | default('') | length >= 32
           - mviewerstudio_auth_mode in ['public', 'authlib']
           - mviewerstudio_url_prefix is match('^[a-zA-Z0-9_-]+$')
           - mviewerstudio_url_prefix not in ['mviewer', 'apps', 'home', 'geoserver']

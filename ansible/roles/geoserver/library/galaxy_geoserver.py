@@ -17,13 +17,13 @@ import urllib.request
 import xml.etree.ElementTree as ET
 
 from ansible.module_utils.basic import AnsibleModule
-from ansible.module_utils.galaxy_env import read_configuration
+from ansible.module_utils.galaxy_database import read_configuration
 
 
 def main():
     module = AnsibleModule(
         argument_spec=dict(
-            env_content=dict(type='str', required=True, no_log=True),
+            password=dict(type='str', required=True, no_log=True),
             database=dict(type='str', default='donneessig'),
             username=dict(type='str', default='usersig'),
             host=dict(type='str', default='127.0.0.1'),
@@ -37,7 +37,7 @@ def main():
         ), supports_check_mode=True)
     try:
         database, username, password = read_configuration(
-            module.params['env_content'], module.params['database'], module.params['username'])
+            module.params['password'], module.params['database'], module.params['username'])
     except ValueError as error:
         module.fail_json(msg=str(error))
     module.no_log_values.add(password)

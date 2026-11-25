@@ -1,0 +1,20 @@
+---
+galaxy_user: mviewer
+galaxy_group: mviewer
+galaxy_install_dir: /var/www/mviewergalaxy
+galaxy_home_dir: "{{ galaxy_install_dir }}/home"
+galaxy_shared_data_dir: /srv/data
+galaxy_logs_dir: /srv/logs
+galaxy_data_dir: /var/lib/mviewer-galaxy
+# Liste commune à la vérification des téléchargements et à l'installation.
+galaxy_system_packages:
+  - ca-certificates
+  - git
+  - python3
+  - python3-pip
+  - python3-venv
+  - libxml2-dev
+  - libxslt1-dev
+  - nginx
+# Passer à https derrière un terminateur TLS de confiance.
+galaxy_public_scheme: http

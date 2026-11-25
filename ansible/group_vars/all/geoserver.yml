@@ -19,10 +19,8 @@ geoserver_port: 8080
 geoserver_workspace: donnessig
 geoserver_datastore: postgis
 geoserver_rest_url: "http://127.0.0.1:{{ geoserver_port }}/geoserver"
-# Identifiants du GeoServer installé ; à surcharger après changement du mot de passe.
-geoserver_admin_username: admin
-geoserver_admin_password: geoserver
-geoserver_postgres_env_file: "{{ postgres_env_file | default(playbook_dir ~ '/../.env') }}"
+# Identifiants REST du GeoServer installé : à fournir dans secrets.vault.yml.
+# Voir geoserver_admin_username et geoserver_admin_password dans secrets.example.yml.
 geoserver_postgres_host: 127.0.0.1
 geoserver_postgres_port: "{{ postgres_port | default(5432) }}"
 geoserver_catalog_state_file: "{{ geoserver_download_dir }}/postgis-catalog.json"

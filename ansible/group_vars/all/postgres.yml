@@ -1,5 +1,4 @@
 ---
-postgres_env_file: "{{ playbook_dir }}/../.env"
 postgres_database: donneessig
 postgres_username: usersig
 postgres_port: 5432

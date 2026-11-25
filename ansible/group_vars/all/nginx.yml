@@ -1,0 +1,4 @@
+---
+nginx_log_dir: "{{ galaxy_logs_dir }}/nginx"
+nginx_server_name: localhost
+nginx_http_port: 80

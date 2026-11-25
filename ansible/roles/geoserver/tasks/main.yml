@@ -1,4 +1,13 @@
 ---
+- name: Vérifier les identifiants du Vault pour GeoServer et PostgreSQL
+  ansible.builtin.assert:
+    that:
+      - geoserver_admin_username | default('') | trim | length > 0
+      - geoserver_admin_password | default('') | trim | length > 0
+      - postgres_password | default('') | trim | length > 0
+    fail_msg: Renseigner les identifiants PostgreSQL et GeoServer dans secrets.vault.yml.
+  no_log: true
+
 - name: Vérifier les paramètres GeoServer
   ansible.builtin.assert:
     that:
@@ -168,7 +177,7 @@
 
     - name: Créer le workspace par défaut et sa connexion PostGIS
       galaxy_geoserver:
-        env_content: "{{ lookup('ansible.builtin.file', geoserver_postgres_env_file, rstrip=false) }}"
+        password: "{{ postgres_password | default('') }}"
         database: "{{ postgres_database | default('donneessig') }}"
         username: "{{ postgres_username | default('usersig') }}"
         host: "{{ geoserver_postgres_host }}"

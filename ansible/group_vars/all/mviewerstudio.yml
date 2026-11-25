@@ -1,0 +1,22 @@
+---
+mviewerstudio_repository: https://github.com/jdev-org/mviewerstudio.git
+mviewerstudio_version: oauth2-proxy-keycloak
+mviewerstudio_install_dir: /srv/apps/mviewerstudio
+mviewerstudio_venv: "{{ mviewerstudio_install_dir }}/.venv"
+mviewerstudio_log_dir: "{{ galaxy_logs_dir }}/mviewerstudio"
+mviewerstudio_port: 5007
+mviewerstudio_url_prefix: mviewerstudio
+mviewerstudio_default_org: public
+mviewerstudio_front_config: "{{ galaxy_data_dir }}/mviewerstudio-config.json"
+# public : accès sans authentification ; authlib : authentification OIDC.
+mviewerstudio_auth_mode: public
+# Secrets Studio : mviewerstudio_secret_key et mviewerstudio_oidc_client_secret
+# sont fournis exclusivement par secrets.vault.yml (voir secrets.example.yml).
+# Paramètres utilisés uniquement avec mviewerstudio_auth_mode: authlib.
+mviewerstudio_oidc_issuer: ""
+mviewerstudio_oidc_metadata_url: "{{ mviewerstudio_oidc_issuer }}/.well-known/openid-configuration"
+mviewerstudio_oidc_client_id: mviewerstudio
+mviewerstudio_oidc_scope: openid profile email organization
+mviewerstudio_oidc_allowed_groups: MVIEWER_ACCESS
+mviewerstudio_oidc_claims_mapping:
+  organization: organization[0]

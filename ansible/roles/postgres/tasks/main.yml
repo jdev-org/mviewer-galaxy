@@ -1,7 +1,7 @@
 ---
-- name: Vérifier le fichier .env PostgreSQL et son mot de passe obligatoire
+- name: Vérifier les variables PostgreSQL et leur mot de passe obligatoire
   galaxy_postgres:
-    env_content: "{{ lookup('ansible.builtin.file', postgres_env_file, rstrip=false) }}"
+    password: "{{ postgres_password | default('') }}"
     database: "{{ postgres_database }}"
     username: "{{ postgres_username }}"
     validate_only: true
@@ -72,7 +72,7 @@
 
 - name: Créer la base SIG, son propriétaire et activer PostGIS
   galaxy_postgres:
-    env_content: "{{ lookup('ansible.builtin.file', postgres_env_file, rstrip=false) }}"
+    password: "{{ postgres_password | default('') }}"
     database: "{{ postgres_database }}"
     username: "{{ postgres_username }}"
     port: "{{ postgres_port }}"

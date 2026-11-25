@@ -4,6 +4,11 @@
   become: true
   gather_facts: false
   vars_files:
-    - ../group_vars/all.yml
+    - ../group_vars/all/common.yml
+    - ../group_vars/all/mviewer.yml
+    - ../group_vars/all/mviewerstudio.yml
+    - ../group_vars/all/nginx.yml
+    - ../group_vars/all/postgres.yml
+    - ../group_vars/all/geoserver.yml
   roles:
     - upgrade_mviewer
