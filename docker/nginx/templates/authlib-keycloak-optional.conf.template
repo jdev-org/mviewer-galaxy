@@ -10,6 +10,10 @@ server {
 
     client_max_body_size 20m;
 
+    location /header/ {
+        alias /usr/share/nginx/html/header/;
+    }
+
     location = /catalogue {
         return 302 /catalogue/$is_args$args;
     }
@@ -88,7 +92,7 @@ server {
     }
 
     location / {
-        root /usr/share/nginx/html/portal;
+        root /usr/share/nginx/html/home;
         index index.html;
         try_files $uri $uri/ =404;
     }

@@ -1,7 +1,7 @@
 (() => {
 "use strict";
 
-const config = window.PORTAL_CONFIG || {};
+const config = window.HEADER_CONFIG || {};
 const brand = config.brand || {};
 if (brand.name) document.getElementById("brand-name").textContent = brand.name;
 if (typeof brand.subtitle === "string") {

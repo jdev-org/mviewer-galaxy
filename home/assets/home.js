@@ -1,6 +1,6 @@
 "use strict";
 
-const config = window.PORTAL_CONFIG || {};
+const config = window.HOME_CONFIG || {};
 if (config.heroImage) document.querySelector(".hero-image").src = config.heroImage;
 
 const defaultMap = {
