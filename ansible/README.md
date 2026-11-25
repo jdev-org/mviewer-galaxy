@@ -3,7 +3,7 @@
 Suivre les étapes ci-dessous pour installer PostgreSQL/PostGIS, GeoServer,
 Mviewer, Mviewer Studio et nginx sur un serveur Debian ou Ubuntu avec systemd.
 
-Les 13 extensions décrites dans la section [extensions GeoServer](#ajouter-ou-mettre-à-jour-les-extensions-geoserver)
+Les 14 extensions décrites dans la section [extensions GeoServer](#ajouter-ou-mettre-à-jour-les-extensions-geoserver)
 sont installées par défaut.
 
 Studio est accessible sans authentification par défaut ; l'étape 6 permet
@@ -417,8 +417,9 @@ ajoutées ensuite avec le playbook dédié.
 | Couverture Image Pyramid | `pyramid` |
 | Import de données | `importer` |
 | Styles YSLD, CSS et Chart Symbolizer | `ysld`, `css`, `charts` |
+| Filtrage entre couches | `querylayer` |
 
-La sélection comporte 13 extensions. L'extension raster GDAL n'est pas incluse.
+La sélection comporte 14 extensions. L'extension raster GDAL n'est pas incluse.
 Les sorties DXF, Excel et OGR concernent WFS ; WPS n'est pas installé.
 L'entrée DXF exclut son JAR WPS facultatif avec `exclude_jars`, conformément
 aux [instructions d'installation DXF](https://docs.geoserver.org/stable/en/user/extensions/dxf/).

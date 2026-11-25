@@ -202,8 +202,9 @@ installs this selection; the dedicated playbook can add extensions afterwards.
 | Image Pyramid coverage | `pyramid` |
 | Data import | `importer` |
 | YSLD, CSS and Chart Symbolizer styling | `ysld`, `css`, `charts` |
+| Cross-layer filtering | `querylayer` |
 
-The default selection includes 13 extensions. It excludes GDAL raster support.
+The default selection includes 14 extensions. It excludes GDAL raster support.
 DXF, Excel and OGR output target WFS; WPS is not installed. The DXF entry uses
 `exclude_jars` to skip its optional WPS JAR, following the
 [DXF installation instructions](https://docs.geoserver.org/stable/en/user/extensions/dxf/).

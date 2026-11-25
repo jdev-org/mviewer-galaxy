@@ -205,8 +205,9 @@ ajoutées ensuite avec le playbook dédié.
 | Couverture Image Pyramid | `pyramid` |
 | Import de données | `importer` |
 | Styles YSLD, CSS et Chart Symbolizer | `ysld`, `css`, `charts` |
+| Filtrage entre couches | `querylayer` |
 
-La sélection comporte 13 extensions. L'extension raster GDAL n'est pas incluse.
+La sélection comporte 14 extensions. L'extension raster GDAL n'est pas incluse.
 Les sorties DXF, Excel et OGR concernent WFS ; WPS n'est pas installé.
 L'entrée DXF exclut son JAR WPS facultatif avec `exclude_jars`, conformément
 aux [instructions d'installation DXF](https://docs.geoserver.org/stable/en/user/extensions/dxf/).

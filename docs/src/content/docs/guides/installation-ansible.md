@@ -331,7 +331,7 @@ ansible-playbook playbooks/install.yml -e @site.yml -e @secrets.vault.yml --ask-
 
 - Changer un nom de base crée une nouvelle base sans migrer l'ancienne.
 
-Le déploiement installe aussi les 13 extensions listées avec leurs URL et empreintes SHA-256 dans `group_vars/all/geoserver_extensions.yml`. Pour en ajouter ensuite, utiliser le playbook dédié `playbooks/geoserver_extensions.yml`. Voir [la gestion des extensions](/mviewer-galaxy/guides/ansible/environnement/#ajouter-ou-mettre-à-jour-les-extensions-geoserver). Le support raster GDAL est exclu ; OGR et Image Pyramid installent les outils `gdal-bin` et `python3-gdal`.
+Le déploiement installe aussi les 14 extensions listées avec leurs URL et empreintes SHA-256 dans `group_vars/all/geoserver_extensions.yml`. Pour en ajouter ensuite, utiliser le playbook dédié `playbooks/geoserver_extensions.yml`. Voir [la gestion des extensions](/mviewer-galaxy/guides/ansible/environnement/#ajouter-ou-mettre-à-jour-les-extensions-geoserver). Le support raster GDAL est exclu ; OGR et Image Pyramid installent les outils `gdal-bin` et `python3-gdal`.
 
 <div class="ansible-section-anchor" id="install-applications"></div>
 
