@@ -5,6 +5,9 @@ OIDC gérée par Authlib et Keycloak.
 
 ## Organisation
 
+- `home/` : page d’accueil, configuration et ressources spécifiques.
+- `header/` : en-tête, thème et configuration partagés avec le catalogue.
+- `catalogue/` : catalogue des cartes.
 - `mviewer/` : sous-module Mviewer.
 - `mviewerstudio/` : sous-module Mviewer Studio, utilisé pour construire l'image Docker.
 - [docs/](docs/README.md) : site de documentation Astro Starlight.

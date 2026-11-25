@@ -104,20 +104,25 @@ parcours de connexion pour contrôler les échanges avec Keycloak.
 
 ## Page d’accueil et session
 
-La racine `/` sert le portail contenu dans `header/`, monté en lecture seule
-dans nginx. Il contient une image locale, les liens vers Mviewer et Studio et
-un header dont le bouton de connexion ou déconnexion suit la session Studio.
-Ce répertoire utilise HTML, CSS et JavaScript sans compilation ni dépendance.
+La racine `/` sert la page d’accueil contenue dans `home/`, montée en lecture
+seule dans nginx. Ses styles, scripts et images sont dans `home/assets/`.
+
+Le répertoire `header/`, servi sous `/header/`, contient l’en-tête et le thème
+partagés avec le catalogue. Son bouton de connexion ou déconnexion suit la
+session Studio. Les deux répertoires utilisent HTML, CSS et JavaScript sans
+compilation ni dépendance.
 
 ### Personnaliser l’accueil
 
 | Fichier | Personnalisation |
 |---|---|
-| `header/config.js` | Nom, sous-titre, logo, image d’accueil et liens `headerLinks` |
+| `header/config.js` | Nom, sous-titre, logo et liens `headerLinks` communs aux deux pages |
+| `home/config.js` | Image d’accueil (`heroImage`) |
 | `catalogue/data.json` | Cartes du catalogue et sélection des cartes à la une avec `favorite` |
 | `header/theme.css` | Couleurs, polices, arrondis, hauteurs et espacements via les variables CSS |
 | `header/custom.css` | Styles libres, prioritaires sur les styles de base |
-| `header/index.html` | Textes et structure du contenu |
+| `home/index.html` | Textes et structure du contenu |
+| `home/assets/home.css`, `home/assets/home.js` | Styles et carrousel propres à l’accueil |
 
 Pour ajouter un lien dans le header, ajouter une entrée dans `headerLinks` :
 
@@ -126,11 +131,11 @@ Pour ajouter un lien dans le header, ajouter une entrée dans `headerLinks` :
 ```
 
 Les liens restent visibles sur mobile et passent à la ligne si nécessaire.
-L’accueil et le catalogue partagent `header/assets/header.css` et
-`header/assets/header.js` pour leur navigation et leur état de connexion.
+L’accueil et le catalogue partagent `header/header.css` et
+`header/header.js` pour leur navigation et leur état de connexion.
 Le logo par défaut des deux pages est `catalogue/img/logo_mviewer.svg` ;
 `brand.logo` dans `header/config.js` permet de le remplacer pour les deux pages.
-Dans `theme.css`, `--page-gutter` règle les marges latérales, `--section-padding`
+Dans `header/theme.css`, `--page-gutter` règle les marges latérales, `--section-padding`
 les espacements des sections et `--card-padding` ceux des cartes. Les marges
 latérales par défaut sont réduites à 3 % (entre 16 et 48 pixels).
 Modifier les fichiers puis recharger la page suffit grâce au montage Docker ;
@@ -184,7 +189,7 @@ de Studio, relancer `up -d --build` avec les options du mode choisi.
 
 ### Visuel
 
-Le fichier `header/assets/coast.webp` est une illustration générée avec l’outil
+Le fichier `home/assets/coast.webp` est une illustration générée avec l’outil
 intégré imagegen, puis optimisée en WebP. Prompt : « Vue aérienne réaliste d’un
 estuaire de la côte bretonne, eau turquoise, bancs de sable et champs verts.
 Composition panoramique, océan sombre à gauche pour le texte, côte détaillée à

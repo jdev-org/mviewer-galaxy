@@ -87,6 +87,17 @@ docker compose --env-file docker/.env.docker -f docker/docker-compose.yml config
 
 This command checks the Compose configuration. Application variables are passed to the containers; then check the required values and the sign-in flow to verify exchanges with Keycloak.
 
+## Home page and shared header
+
+The public root `/` serves `home/index.html`. Home-specific styles, scripts and
+images live in `home/assets/`; `home/config.js` controls the hero image.
+
+The home page and catalogue share `header/header.css`, `header/header.js`,
+`header/theme.css` and `header/custom.css`, served under `/header/`.
+`header/config.js` controls their common brand, logo and navigation links.
+Both directories are mounted read-only in nginx. Edit the files and reload the
+page to apply content changes; recreate the proxy once after changing mounts.
+
 ## Additional variables
 
 | Variable | Reference value | Purpose |
