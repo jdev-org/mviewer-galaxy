@@ -19,12 +19,13 @@
       - geoserver_bind_address is match('^[a-zA-Z0-9_.:-]+$')
     fail_msg: Vérifier la version, l'adresse et le port de GeoServer.
 
-- name: Vérifier les extensions avant de modifier la distribution GeoServer
+- name: Vérifier l'archive préparée sur le poste de contrôle
   ansible.builtin.include_role:
     name: geoserver_extensions
-    tasks_from: validate
+    tasks_from: inspect_bundle
     apply:
       tags: [geoserver]
+  when: geoserver_local_archive | length > 0
 
 - name: Installer Java 21 et les outils de déploiement GeoServer
   ansible.builtin.apt:
@@ -32,6 +33,16 @@
     state: present
     update_cache: true
     cache_valid_time: 3600
+
+- name: Installer les outils système requis par les extensions intégrées
+  ansible.builtin.apt:
+    name: "{{ geoserver_extension_packages }}"
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+  when:
+    - geoserver_local_archive | length > 0
+    - geoserver_extension_packages | length > 0
 
 - name: Créer le groupe GeoServer
   ansible.builtin.group:
@@ -122,11 +133,75 @@
         group: root
         mode: '0644'
         timeout: 120
-      when: not geoserver_existing_distribution.stat.exists
+      when:
+        - not geoserver_existing_distribution.stat.exists
+        - geoserver_local_archive | length == 0
+
+    - name: Rechercher l'empreinte d'une distribution enrichie déjà installée
+      ansible.builtin.stat:
+        path: "{{ geoserver_install_dir }}/.galaxy-bundle-sha256"
+      register: geoserver_installed_bundle_marker
+      when:
+        - geoserver_local_archive | length > 0
+        - geoserver_existing_distribution.stat.exists
+
+    - name: Exiger une distribution installée depuis une archive préparée
+      ansible.builtin.assert:
+        that:
+          - geoserver_installed_bundle_marker.stat.isreg | default(false)
+        fail_msg: La distribution existante ne provient pas d'une archive préparée. Utiliser le playbook manuel geoserver_extensions.yml pour ajouter des extensions, ou un autre geoserver_install_dir pour une nouvelle installation.
+      when:
+        - geoserver_local_archive | length > 0
+        - geoserver_existing_distribution.stat.exists
+
+    - name: Lire la provenance d'une distribution enrichie déjà installée
+      ansible.builtin.slurp:
+        src: "{{ geoserver_install_dir }}/.galaxy-bundle-sha256"
+      register: geoserver_installed_bundle
+      when:
+        - geoserver_local_archive | length > 0
+        - geoserver_existing_distribution.stat.exists
+
+    - name: Refuser le remplacement implicite d'une distribution existante
+      ansible.builtin.assert:
+        that:
+          - geoserver_installed_bundle.content | b64decode | trim == geoserver_verified_bundle.checksum
+        fail_msg: Cette archive diffère de la distribution installée. Utiliser le playbook manuel geoserver_extensions.yml pour ajouter des extensions, ou préparer une nouvelle installation dans un autre geoserver_install_dir.
+      when:
+        - geoserver_local_archive | length > 0
+        - geoserver_existing_distribution.stat.exists
+
+    - name: Transférer la distribution préparée avec ses extensions
+      ansible.builtin.copy:
+        src: "{{ geoserver_local_archive }}"
+        dest: "{{ geoserver_download_dir }}/geoserver-{{ geoserver_version }}-bundle.zip"
+        owner: root
+        group: root
+        mode: '0644'
+      when:
+        - geoserver_local_archive | length > 0
+        - not geoserver_existing_distribution.stat.exists
+
+    - name: Vérifier l'empreinte de la distribution transférée
+      ansible.builtin.stat:
+        path: "{{ geoserver_download_dir }}/geoserver-{{ geoserver_version }}-bundle.zip"
+        checksum_algorithm: sha256
+      register: geoserver_transferred_bundle
+      when:
+        - geoserver_local_archive | length > 0
+        - not geoserver_existing_distribution.stat.exists
+
+    - name: Confirmer l'intégrité du transfert avant extraction
+      ansible.builtin.assert:
+        that:
+          - geoserver_transferred_bundle.stat.checksum == geoserver_verified_bundle.checksum
+      when:
+        - geoserver_local_archive | length > 0
+        - not geoserver_existing_distribution.stat.exists
 
     - name: Extraire la distribution GeoServer
       ansible.builtin.unarchive:
-        src: "{{ geoserver_download_dir }}/geoserver-{{ geoserver_version }}-bin.zip"
+        src: "{{ geoserver_download_dir }}/geoserver-{{ geoserver_version }}-{{ 'bundle' if geoserver_local_archive | length > 0 else 'bin' }}.zip"
         dest: "{{ geoserver_install_dir }}"
         remote_src: true
         creates: "{{ geoserver_install_dir }}/start.jar"
@@ -135,11 +210,14 @@
       when: not geoserver_existing_distribution.stat.exists
       notify: Restart geoserver
 
-    - name: Installer les extensions GeoServer sélectionnées
-      ansible.builtin.include_role:
-        name: geoserver_extensions
-        apply:
-          tags: [geoserver]
+    - name: Mémoriser l'empreinte de la distribution enrichie installée
+      ansible.builtin.copy:
+        content: "{{ geoserver_verified_bundle.checksum }}\n"
+        dest: "{{ geoserver_install_dir }}/.galaxy-bundle-sha256"
+        owner: root
+        group: root
+        mode: '0644'
+      when: geoserver_local_archive | length > 0
 
     - name: Détecter des données GeoServer existantes
       ansible.builtin.find:

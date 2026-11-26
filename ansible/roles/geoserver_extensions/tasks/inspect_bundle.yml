@@ -1,0 +1,12 @@
+---
+- name: Vérifier la sélection attendue dans l'archive
+  ansible.builtin.import_tasks: validate.yml
+
+- name: Vérifier l'archive locale avant toute installation
+  galaxy_geoserver_bundle:
+    archive: "{{ geoserver_local_archive }}"
+    version: "{{ geoserver_version }}"
+    extensions: "{{ geoserver_extensions }}"
+  delegate_to: localhost
+  become: false
+  register: geoserver_verified_bundle
