@@ -233,9 +233,52 @@ as Jinja templates.
 
 ### Edit the extension list
 
+### Prepare an archive with extensions before transfer
+
+Run this step on the control machine, without sudo or application secrets.
+Python 3.11+, Ansible and `unzip` must be available there. From `ansible/`, after
+selecting extensions in `group_vars/all/geoserver_extensions.yml`, run:
+
+```bash
+ansible-playbook playbooks/prepare_geoserver.yml
+```
+
+Add `-e @site.yml` if it defines your version, sources or paths. The playbook
+downloads the official archives, verifies SHA-256 checksums, checks JAR conflicts
+and builds an archive containing the extensions and a manifest. `exclude_jars`
+is respected. The temporary workspace is removed even on failure. Preparation
+does not support `--check`.
+
+The default output is `ansible/artifacts/geoserver/geoserver-3.0.2-bundle.zip`
+(for version 3.0.2), ignored by Git. `geoserver_bundle_dir` controls the cache and
+`geoserver_bundle_archive` the output file. Add its absolute path on the control
+machine to `site.yml`:
+
+```yaml
+geoserver_local_archive: /path/mviewer-galaxy/ansible/artifacts/geoserver/geoserver-3.0.2-bundle.zip
+```
+
+Then run the usual installation with `-e @site.yml` and Vault. Use the same
+version and extension selection as during preparation. The manifest is checked
+before installation; SHA-256 verifies the transfer. Required system tools are
+installed on the target. Installation does not download or add extensions separately.
+
+Without `geoserver_local_archive`, installation uses the official distribution
+without adding extensions. Prepared archives are intended for initial installation:
+an existing distribution from another archive is not replaced. To add extensions
+after installation, run the existing playbook manually:
+
+```bash
+ansible-playbook playbooks/geoserver_extensions.yml -e @site.yml --ask-become-pass
+```
+
+This playbook stays independent of `install.yml`. Update its extension list and
+checksums before running it for a new selection. Application secrets are not
+needed unless Vault contains SSH/sudo credentials.
+
 Open `group_vars/all/geoserver_extensions.yml`. It contains the target version
-and each extension's name, HTTPS URL and SHA-256 checksum. The full deployment
-installs this selection; the dedicated playbook can add extensions afterwards.
+and each extension's name, HTTPS URL and SHA-256 checksum. Extensions are
+integrated into a prepared archive or added later by manually running the dedicated playbook.
 
 | Feature | Extension identifier |
 |---|---|
@@ -255,7 +298,7 @@ DXF, Excel and OGR output target WFS; WPS is not installed. The DXF entry uses
 
 OGR requires `gdal-bin` for `ogr2ogr`. Image Pyramid adds `python3-gdal` for the
 `gdal_retile.py` preparation tool. These packages are installed according to the
-selection and verified by the `check` role. This selection requires no GDAL
+selection when using a prepared archive or manually running the extension playbook. This selection requires no GDAL
 Java/JNI bindings.
 
 To add an extension, append an entry to the list. This is the supplied CSS entry:

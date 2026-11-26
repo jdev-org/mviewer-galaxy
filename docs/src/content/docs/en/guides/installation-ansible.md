@@ -337,7 +337,7 @@ ansible-playbook playbooks/install.yml -e @site.yml -e @secrets.vault.yml --ask-
 
 - Changing a database name creates a new database without migrating the old one.
 
-The default deployment also installs 14 extensions listed with their URLs and SHA-256 checksums in `group_vars/all/geoserver_extensions.yml`. To add extensions later, use the dedicated `playbooks/geoserver_extensions.yml` playbook. See [extension management](/mviewer-galaxy/en/guides/ansible/environnement/#add-or-update-geoserver-extensions). GDAL raster support is excluded; OGR and Image Pyramid install the `gdal-bin` and `python3-gdal` tools.
+By default, deployment installs the official distribution without adding extensions. To integrate extensions before transfer, run `playbooks/prepare_geoserver.yml` on the control machine and set `geoserver_local_archive` in `site.yml`. The selection of 14 extensions and their SHA-256 checksums is defined in `group_vars/all/geoserver_extensions.yml`. To add extensions after installation, run `playbooks/geoserver_extensions.yml` manually; `install.yml` does not run it. See [extension management](/mviewer-galaxy/en/guides/ansible/environnement/#add-or-update-geoserver-extensions). GDAL raster support is excluded; OGR and Image Pyramid install the `gdal-bin` and `python3-gdal` tools.
 
 <div class="ansible-section-anchor" id="install-applications"></div>
 

@@ -233,12 +233,57 @@ JavaScript ou les templates Mustache comme du Jinja.
 
 ## Ajouter ou mettre à jour les extensions GeoServer
 
+### Préparer une archive avec extensions avant le transfert
+
+Cette étape s’exécute sur le poste de contrôle, sans sudo ni secrets applicatifs.
+Elle nécessite Python 3.11+, Ansible et l’outil `unzip` sur ce poste. Depuis
+`ansible/`, après avoir choisi les extensions dans
+`group_vars/all/geoserver_extensions.yml` :
+
+```bash
+ansible-playbook playbooks/prepare_geoserver.yml
+```
+
+Ajouter `-e @site.yml` si la version, les sources ou les chemins y sont définis.
+Le playbook télécharge les archives officielles, vérifie les empreintes SHA-256,
+contrôle les conflits de JAR puis produit une archive avec les extensions et un
+manifeste. Les exclusions `exclude_jars` sont respectées. Le répertoire temporaire
+est supprimé, même en cas d’échec. La préparation ne prend pas en charge `--check`.
+
+La sortie par défaut est `ansible/artifacts/geoserver/geoserver-3.0.2-bundle.zip`
+(pour la version 3.0.2), ignorée par Git. `geoserver_bundle_dir` configure le cache
+et `geoserver_bundle_archive` le fichier produit. Ajouter ensuite dans `site.yml`
+le chemin absolu de cette archive sur le poste de contrôle :
+
+```yaml
+geoserver_local_archive: /chemin/mviewer-galaxy/ansible/artifacts/geoserver/geoserver-3.0.2-bundle.zip
+```
+
+Lancer ensuite l’installation habituelle avec `-e @site.yml` et le Vault.
+La version et la sélection d’extensions doivent être identiques à celles de la
+préparation. Le manifeste est vérifié avant installation ; le transfert est
+contrôlé par SHA-256. Les outils système requis par les extensions sont installés
+sur la cible. L’installation ne télécharge et n’ajoute aucune extension séparément.
+
+Sans `geoserver_local_archive`, l’installation utilise la distribution officielle
+sans ajout d’extensions. Une archive préparée sert à une première installation :
+une distribution existante issue d’une autre archive n’est pas remplacée.
+Pour ajouter des extensions après installation, lancer manuellement :
+
+```bash
+ansible-playbook playbooks/geoserver_extensions.yml -e @site.yml --ask-become-pass
+```
+
+Ce playbook reste indépendant de `install.yml`. Pour une nouvelle version de la
+sélection, modifier sa liste et ses empreintes avant de l’exécuter. Aucun secret
+applicatif n’est nécessaire, sauf si le Vault contient les accès SSH/sudo.
+
 ### Modifier la liste des extensions
 
 Ouvrir `group_vars/all/geoserver_extensions.yml`. Ce fichier contient la version
 ciblée et, pour chaque extension, son nom, son URL HTTPS et son empreinte SHA-256.
-Les extensions sont téléchargées pendant le déploiement complet et peuvent être
-ajoutées ensuite avec le playbook dédié.
+Les extensions sont intégrées à une archive préparée sur le poste de contrôle,
+ou ajoutées ensuite avec le playbook dédié lancé manuellement.
 
 | Fonction | Identifiant d'extension |
 |---|---|
@@ -258,7 +303,8 @@ aux [instructions d'installation DXF](https://docs.geoserver.org/stable/en/user/
 
 OGR nécessite `gdal-bin` pour la commande `ogr2ogr`. Image Pyramid ajoute
 `python3-gdal` pour l'outil de préparation `gdal_retile.py`. Ces paquets sont
-installés automatiquement selon la sélection et vérifiés par le rôle `check`.
+installés selon la sélection lorsque l’archive préparée est utilisée ou lors
+du lancement manuel du playbook des extensions.
 Aucune liaison Java/JNI GDAL n'est nécessaire pour cette sélection.
 
 Pour une extension supplémentaire, ajouter une entrée à la liste. Voici
