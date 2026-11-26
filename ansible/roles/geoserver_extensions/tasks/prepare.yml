@@ -1,0 +1,79 @@
+---
+- name: Vérifier la sélection des extensions à intégrer
+  ansible.builtin.import_tasks: validate.yml
+
+- name: Exiger une préparation réelle et une version GeoServer valide
+  ansible.builtin.assert:
+    that:
+      - not ansible_check_mode
+      - geoserver_version is match('^[0-9]+\.[0-9]+\.[0-9]+$')
+    fail_msg: Exécuter la préparation sans --check avec une version GeoServer valide.
+
+- name: Préparer le cache local et le répertoire de sortie
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    mode: '0755'
+  loop:
+    - "{{ geoserver_bundle_dir }}/cache/extensions/{{ geoserver_version }}"
+    - "{{ geoserver_bundle_archive | dirname }}"
+
+- name: Télécharger la distribution officielle sur le poste de contrôle
+  ansible.builtin.get_url:
+    url: "{{ geoserver_archive_url }}"
+    dest: "{{ geoserver_bundle_dir }}/cache/geoserver-{{ geoserver_version }}-bin.zip"
+    checksum: "{{ geoserver_archive_checksum }}"
+    mode: '0644'
+    timeout: 120
+
+- name: Télécharger les extensions vérifiées sur le poste de contrôle
+  ansible.builtin.get_url:
+    url: "{{ item.url }}"
+    dest: "{{ geoserver_bundle_dir }}/cache/extensions/{{ geoserver_version }}/{{ item.name }}.zip"
+    checksum: "{{ item.checksum }}"
+    mode: '0644'
+    timeout: 120
+  loop: "{{ geoserver_extensions }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: Créer un espace temporaire de préparation
+  ansible.builtin.tempfile:
+    state: directory
+    prefix: galaxy-geoserver-
+  register: geoserver_bundle_workspace
+  changed_when: false
+
+- name: Assembler la distribution GeoServer
+  block:
+    - name: Extraire la distribution officielle dans l'espace temporaire
+      ansible.builtin.unarchive:
+        src: "{{ geoserver_bundle_dir }}/cache/geoserver-{{ geoserver_version }}-bin.zip"
+        dest: "{{ geoserver_bundle_workspace.path }}"
+        remote_src: true
+      changed_when: false
+
+    - name: Intégrer les JAR après vérification des empreintes et des conflits
+      galaxy_geoserver_extensions:
+        extensions: "{{ geoserver_extensions }}"
+        cache_dir: "{{ geoserver_bundle_dir }}/cache/extensions/{{ geoserver_version }}"
+        lib_dir: "{{ geoserver_bundle_workspace.path }}/webapps/geoserver/WEB-INF/lib"
+      changed_when: false
+
+    - name: Produire l'archive et son manifeste
+      galaxy_geoserver_bundle:
+        source_dir: "{{ geoserver_bundle_workspace.path }}"
+        archive: "{{ geoserver_bundle_archive }}"
+        version: "{{ geoserver_version }}"
+        extensions: "{{ geoserver_extensions }}"
+      register: geoserver_prepared_bundle
+
+    - name: Afficher l'archive utilisable pour l'installation
+      ansible.builtin.debug:
+        msg: "geoserver_local_archive: {{ geoserver_bundle_archive }} ; SHA-256 : {{ geoserver_prepared_bundle.checksum }}"
+  always:
+    - name: Supprimer l'espace temporaire de préparation
+      ansible.builtin.file:
+        path: "{{ geoserver_bundle_workspace.path }}"
+        state: absent
+      changed_when: false

@@ -2,6 +2,10 @@
 geoserver_version: '3.0.2'
 geoserver_archive_url: "https://downloads.sourceforge.net/project/geoserver/GeoServer/{{ geoserver_version }}/geoserver-{{ geoserver_version }}-bin.zip"
 geoserver_archive_checksum: sha256:66520d9debefb7689b96c8b9b133430f0ebdb28e74ce58b2355d877b8e9a01bc
+# Archive préparée sur le poste de contrôle ; vide = distribution officielle seule.
+geoserver_local_archive: ""
+geoserver_bundle_dir: "{{ playbook_dir }}/../artifacts/geoserver"
+geoserver_bundle_archive: "{{ geoserver_bundle_dir }}/geoserver-{{ geoserver_version }}-bundle.zip"
 geoserver_java_package: openjdk-21-jre-headless
 geoserver_packages:
   - "{{ geoserver_java_package }}"

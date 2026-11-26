@@ -1,0 +1,14 @@
+---
+- name: Préparer localement GeoServer avec ses extensions
+  hosts: localhost
+  connection: local
+  become: false
+  gather_facts: false
+  vars_files:
+    - ../group_vars/all/geoserver.yml
+    - ../group_vars/all/geoserver_extensions.yml
+  tasks:
+    - name: Construire la distribution enrichie
+      ansible.builtin.include_role:
+        name: geoserver_extensions
+        tasks_from: prepare
