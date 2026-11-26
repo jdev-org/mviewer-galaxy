@@ -3,7 +3,7 @@ galaxy_user: mviewer
 galaxy_group: mviewer
 galaxy_install_dir: /var/www/mviewergalaxy
 # Portail facultatif : accueil, en-tête partagé et catalogue.
-galaxy_home_enabled: true
+galaxy_home_enabled: false
 galaxy_landing_path: "{{ '/accueil/' if galaxy_home_enabled | bool else '/mviewer/' }}"
 galaxy_home_dir: "{{ galaxy_install_dir }}/home"
 galaxy_header_dir: "{{ galaxy_install_dir }}/header"
