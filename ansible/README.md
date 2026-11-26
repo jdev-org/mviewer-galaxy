@@ -134,6 +134,50 @@ Les modifications locales des sous-modules ne sont pas transférées.
 
 ## 4. Préparer les accès PostgreSQL
 
+Choisir dans `site.yml` si Ansible doit installer les paquets PostgreSQL/PostGIS :
+
+```yaml
+postgres_install: true # Valeur par défaut.
+```
+
+Pour utiliser une installation existante sans installer de paquets
+PostgreSQL/PostGIS :
+
+```yaml
+postgres_install: false
+postgres_port: 5432
+postgres_socket_dir: /var/run/postgresql
+```
+
+Avec `false`, le serveur et les paquets PostGIS doivent déjà être présents sur la
+cible. Un cluster absent ou incompatible bloque le déploiement, y compris en
+simulation. Le contrôle APT du tag `check` ignore alors les paquets PostgreSQL/PostGIS.
+La vérification des versions, la création ou réutilisation de la base, la gestion
+du compte SQL, des journaux et des accès réseau restent actives.
+
+Avec `postgres_install: true`, le rôle détecte les clusters installés avant de choisir les paquets. Si un
+cluster existe sur `postgres_port`, il conserve sa version majeure et installe
+les paquets PostGIS correspondants, sans installer une autre version majeure de
+PostgreSQL. Seul ce cluster est démarré et sa configuration est adaptée. Si des
+clusters existent mais qu’aucun ne correspond au port demandé, le déploiement
+s’arrête : choisir le bon `postgres_port` dans `site.yml`.
+
+Les versions minimales acceptées sont configurables dans `site.yml` :
+
+```yaml
+postgres_minimum_version: 14
+postgres_minimum_postgis_version: 3
+```
+
+Le serveur et la version de PostGIS déjà activée dans la base sont vérifiés
+avant toute écriture SQL. Une version incompatible bloque le déploiement ; aucune
+migration de cluster ni mise à niveau de l’extension existante n’est lancée.
+Si `postgres_database` existe, elle est réutilisée avec ses tables et ses données.
+Sinon, elle est créée. PostGIS est activé seulement s’il est absent. Le rôle
+continue d’aligner le compte SQL, son mot de passe et les propriétaires de la base
+et du schéma `public` sur les paramètres configurés. Le résultat indique la base
+créée ou réutilisée et les versions PostgreSQL/PostGIS retenues.
+
 Définir les interfaces du serveur et les clients autorisés dans `site.yml` :
 
 ```yaml

@@ -181,7 +181,7 @@ postgres_password: ""
 
 | Élément | Explication |
 |---|---|
-| `postgres_database` | Nom de la base SIG à créer ; `donneessig` est la valeur par défaut. |
+| `postgres_database` | Base SIG à réutiliser si elle existe, ou à créer sinon ; `donneessig` est la valeur par défaut. |
 | `postgres_username` | Compte SQL propriétaire de la base et du schéma `public` ; `usersig` est la valeur par défaut. |
 | `postgres_password` | Mot de passe SQL obligatoire à renseigner ; ne pas laisser la valeur vide. |
 
@@ -193,11 +193,17 @@ postgres_password: ""
 
 - Charger le fichier chiffré avec `-e @secrets.vault.yml --ask-vault-pass`.
 
-- Le rôle crée l'utilisateur SQL, la base et PostGIS.
+- Le rôle réutilise la base si elle existe et la crée uniquement si elle est absente. Ses tables et ses données sont conservées ; les identifiants SQL et les propriétaires de la base et du schéma restent alignés sur les paramètres configurés.
 
 - L'utilisateur est propriétaire de la base et du schéma `public`, avec connexion autorisée et sans droits superutilisateur.
 
 - Les comptes SQL sont distincts des comptes Linux et SSH.
+
+- Définir `postgres_install: false` dans `site.yml` pour réutiliser PostgreSQL/PostGIS déjà installés sur la cible, sans installer leurs paquets. La valeur par défaut est `true`. Un cluster absent bloque le déploiement, même en simulation. Les contrôles de version, la création ou réutilisation de la base, les identifiants SQL, les journaux et les accès réseau restent gérés par Ansible. Le tag `check` exclut les paquets PostgreSQL/PostGIS de son contrôle APT lorsque cette option est désactivée.
+
+- Avant d’installer les paquets, le rôle détecte un cluster sur `postgres_port` et conserve sa version majeure. Seul ce cluster est démarré et configuré ; un port ne correspondant à aucun cluster existant bloque le déploiement.
+
+- Les versions minimales sont `postgres_minimum_version: 14` et `postgres_minimum_postgis_version: 3`, configurables dans `site.yml`. Les versions sont vérifiées avant toute écriture SQL. Une version incompatible bloque le déploiement sans migration ni mise à niveau automatique de l’extension. La base existante est réutilisée ; PostGIS est activé seulement s’il est absent. Les identifiants SQL et les propriétaires de la base et du schéma restent alignés sur la configuration.
 
 <div class="ansible-section-anchor" id="install-network"></div>
 

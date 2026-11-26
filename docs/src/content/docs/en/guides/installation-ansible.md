@@ -183,7 +183,7 @@ postgres_password: ""
 
 | Element | Explanation |
 |---|---|
-| `postgres_database` | GIS database to create; `donneessig` is the default. |
+| `postgres_database` | GIS database to reuse if present, or create if absent; `donneessig` is the default. |
 | `postgres_username` | SQL account owning the database and `public` schema; `usersig` is the default. |
 | `postgres_password` | Required SQL password to fill in; do not leave it empty. |
 
@@ -197,11 +197,17 @@ postgres_password: ""
 
 - Load the encrypted file with `-e @secrets.vault.yml --ask-vault-pass`.
 
-- The role creates the SQL user, database and PostGIS.
+- The role reuses the database if present and creates it only if absent. Existing tables and data are preserved; SQL credentials and database/schema ownership are still reconciled with the configured values.
 
 - The user owns both the database and the `public` schema, can log in and has no superuser privileges.
 
 - SQL accounts are separate from Linux and SSH accounts.
+
+- Set `postgres_install: false` in `site.yml` to reuse PostgreSQL/PostGIS already installed on the target, without installing their packages. The default is `true`. A missing cluster stops deployment even in check mode. Version checks, database creation/reuse, SQL credentials, logging and network configuration remain managed by Ansible. The `check` tag excludes PostgreSQL/PostGIS packages from its APT check when this option is false.
+
+- Before installing packages, the role detects an existing cluster on `postgres_port` and keeps its major version. Only that cluster is started and configured; a port mismatch stops deployment.
+
+- The minimum versions are `postgres_minimum_version: 14` and `postgres_minimum_postgis_version: 3`, configurable in `site.yml`. Versions are checked before SQL writes. An incompatible version stops deployment without automatic migration or extension upgrade. An existing database is reused; PostGIS is enabled only if absent. SQL credentials and database/schema ownership are still reconciled.
 
 <div class="ansible-section-anchor" id="install-network"></div>
 

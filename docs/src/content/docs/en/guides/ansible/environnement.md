@@ -117,7 +117,7 @@ postgres_password: ""
 
 | Element | Explanation |
 |---|---|
-| `postgres_database` | GIS database to create; `donneessig` is the default. |
+| `postgres_database` | GIS database to reuse if present, or create if absent; `donneessig` is the default. |
 | `postgres_username` | SQL account owning the database and `public` schema; `usersig` is the default. |
 | `postgres_password` | Required SQL password to fill in; do not leave it empty. |
 
@@ -134,6 +134,12 @@ postgres_password: ""
 - Encrypt with `ansible-vault encrypt secrets.vault.yml`, then load with `-e @secrets.vault.yml --ask-vault-pass`. Edit it with `ansible-vault edit secrets.vault.yml`.
 
 - `postgres_port` and `postgres_socket_dir` select the local PostgreSQL server to configure.
+
+- Set `postgres_install: false` in `site.yml` to reuse PostgreSQL/PostGIS already installed on the target, without installing their packages. The default is `true`. A missing cluster stops deployment even in check mode. Version checks, database creation/reuse, SQL credentials, logging and network configuration remain managed by Ansible. The `check` tag excludes PostgreSQL/PostGIS packages from its APT check when this option is false.
+
+- Before installing packages, the role detects an existing cluster on `postgres_port` and keeps its major version. Only that cluster is started and configured; a port mismatch stops deployment.
+
+- The minimum versions are `postgres_minimum_version: 14` and `postgres_minimum_postgis_version: 3`, configurable in `site.yml`. Versions are checked before SQL writes. An incompatible version stops deployment without automatic migration or extension upgrade. An existing database is reused; PostGIS is enabled only if absent. SQL credentials and database/schema ownership are still reconciled.
 
 - Set `postgres_allowed_clients` in `site.yml` to a list of client IPs/networks in CIDR format, such as `[192.0.2.10/32, 10.0.0.0/24]`. The default is `[]` (no remote clients).
 
