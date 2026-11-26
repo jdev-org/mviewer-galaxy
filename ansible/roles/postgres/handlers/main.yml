@@ -2,8 +2,8 @@
 - name: Restart postgresql configuration
   ansible.builtin.include_tasks: restart_logging.yml
   loop: >-
-    {{ ((postgres_log_config.results | default([]) | selectattr('changed') | map(attribute='item.path') | list)
-        + (postgres_log_links.results | default([]) | selectattr('changed') | map(attribute='item.path') | list)
+    {{ ((postgres_log_config.results | default([]) | selectattr('changed') | map(attribute='item.configfile') | list)
+        + (postgres_log_links.results | default([]) | selectattr('changed') | map(attribute='item.configfile') | list)
         + ([postgres_database_result.config_file] if (postgres_listen_config is defined and postgres_listen_config.changed)
             or (postgres_listen_state is defined and postgres_listen_state.changed) else [])) | unique | list }}
   loop_control:

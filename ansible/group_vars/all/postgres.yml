@@ -1,8 +1,13 @@
 ---
+# false : réutiliser PostgreSQL/PostGIS déjà installés, sans installer leurs paquets.
+postgres_install: true
 postgres_database: donneessig
 postgres_username: usersig
 postgres_port: 5432
 postgres_socket_dir: /var/run/postgresql
+# Versions majeures minimales acceptées pour réutiliser un serveur existant.
+postgres_minimum_version: 14
+postgres_minimum_postgis_version: 3
 # Interfaces du serveur PostgreSQL (pas les IP des clients), locales par défaut.
 postgres_listen_addresses: ['127.0.0.1', '::1']
 # IP/réseaux clients autorisés pour postgres_database et postgres_username.
@@ -14,3 +19,8 @@ postgres_packages:
   - postgresql
   - postgresql-postgis
   - postgis
+# Paquets ciblés pour conserver la version d'un cluster déjà présent.
+postgres_existing_packages:
+  - "postgresql-{{ postgres_matching_clusters[0].version }}"
+  - "postgresql-{{ postgres_matching_clusters[0].version }}-postgis-3"
+  - "postgresql-{{ postgres_matching_clusters[0].version }}-postgis-3-scripts"

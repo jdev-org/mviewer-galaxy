@@ -1,0 +1,34 @@
+---
+- name: Rechercher l'outil de détection des clusters PostgreSQL
+  ansible.builtin.stat:
+    path: /usr/bin/pg_lsclusters
+  register: postgres_cluster_tool
+
+- name: Lire les clusters PostgreSQL installés sans les modifier
+  ansible.builtin.command:
+    argv: [/usr/bin/pg_lsclusters, --json]
+  register: postgres_cluster_inventory
+  changed_when: false
+  check_mode: false
+  when: postgres_cluster_tool.stat.exists
+
+- name: Sélectionner le cluster du port configuré
+  ansible.builtin.set_fact:
+    postgres_detected_clusters: "{{ postgres_cluster_inventory.stdout | default('[]', true) | from_json }}"
+    postgres_matching_clusters: "{{ postgres_cluster_inventory.stdout | default('[]', true) | from_json | selectattr('port', 'in', [postgres_port | int, postgres_port | string]) | list }}"
+
+- name: Éviter la création implicite d'un autre cluster
+  ansible.builtin.assert:
+    that:
+      - postgres_matching_clusters | length <= 1
+      - postgres_detected_clusters | length == 0 or postgres_matching_clusters | length == 1
+      - not (postgres_cluster_required | bool) or postgres_matching_clusters | length == 1
+    fail_msg: Aucun cluster unique ne correspond à postgres_port. Avec postgres_install=false, PostgreSQL/PostGIS doivent déjà être installés. Choisir le port du cluster existant ; Ansible ne migre pas de cluster automatiquement.
+
+- name: Vérifier la version du cluster existant avant installation de paquets
+  ansible.builtin.assert:
+    that:
+      - postgres_matching_clusters[0].version is match('^[0-9]+$')
+      - postgres_matching_clusters[0].version | int >= postgres_minimum_version | int
+    fail_msg: Le cluster existant est trop ancien pour postgres_minimum_version. Aucune mise à niveau automatique n'est effectuée.
+  when: postgres_matching_clusters | length == 1
