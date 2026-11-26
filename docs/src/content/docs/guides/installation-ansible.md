@@ -225,6 +225,10 @@ Pour le format des règles et les méthodes d'authentification, consulter la [do
 
 ## Compléter et chiffrer le Vault des applications
 
+Ansible Vault permet de chiffrer les fichiers contenant les mots de passe et les secrets du déploiement.
+
+Vous trouverez le fichier `secrets.example.yml` à réutiliser comme modèle pour créer votre propre fichier `secrets.vault.yml`. Ce fichier sera ensuite déchiffré lors de l’exécution des playbooks avec le mot de passe du Vault.
+
 ```bash
 # Reprendre le fichier préparé pour la base SIG.
 python3 -c 'import secrets; print(secrets.token_hex(32))'

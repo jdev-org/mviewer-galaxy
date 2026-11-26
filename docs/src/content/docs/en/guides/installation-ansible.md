@@ -229,6 +229,8 @@ For rule syntax and authentication methods, see the [PostgreSQL documentation on
 
 ## Complete and encrypt the application Vault
 
+Ansible Vault encrypts files containing deployment passwords and secrets. Use `secrets.example.yml` as a template to create your `secrets.vault.yml` file, which is decrypted when running playbooks using the Vault password.
+
 ```bash
 # Use the file prepared for the GIS database.
 python3 -c 'import secrets; print(secrets.token_hex(32))'
