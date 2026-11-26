@@ -404,6 +404,38 @@ le Vault pour les prochaines exécutions.
 
 En cas d'échec, consulter le [guide de dépannage](../docs/src/content/docs/guides/ansible/depannage.md).
 
+## Gérer les cartes depuis un dépôt Git
+
+Après l’installation, renseigner dans `site.yml` le dépôt contenant les cartes
+à sa racine :
+
+```yaml
+mviewer_apps_repository: https://github.com/votre-organisation/cartes.git
+mviewer_apps_version: main # Branche, tag ou SHA ; HEAD par défaut.
+# mviewer_apps_dir: /srv/data/mviewer/apps
+```
+
+Depuis `ansible/`, cloner ou actualiser ce dépôt :
+
+```bash
+ansible-playbook playbooks/update_apps.yml -e @site.yml --ask-become-pass
+```
+
+Ce playbook est indépendant du portail et ne redémarre aucun service. Il utilise
+le compte `galaxy_user` (`mviewer` par défaut), qui doit disposer des accès Git
+sur la cible pour un dépôt privé, y compris les clés SSH et les hôtes connus.
+Il suppose que l’installation a déjà préparé Git et le compte de service.
+
+Le premier clonage exige un dossier vide ou absent. Si l’installation a déjà
+créé `default.xml`, sauvegarder et déplacer ce fichier avant le clonage ; faire
+de même pour les autres fichiers existants. Aucun fichier existant n’est supprimé
+automatiquement. Pour un dépôt déjà présent, les modifications locales suivies
+par Git bloquent la mise à jour ; les résoudre avant de relancer le playbook.
+Ansible ne crée pas de commit et ne pousse pas les cartes vers le dépôt distant.
+
+Si `mviewer_apps_dir` est personnalisé, utiliser aussi cette valeur lors du
+déploiement complet pour adapter le lien exposé par Mviewer.
+
 ## Installer sans page d’accueil
 
 Le portail est activé par défaut. Pour ne pas installer l’accueil, l’en-tête
