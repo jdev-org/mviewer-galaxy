@@ -21,7 +21,7 @@ next:
 | Étape | Action | Résultat attendu |
 |---|---|---|
 | 1. [Vérifier les prérequis](#install-prerequisites) | Préparer Ansible sur le poste de contrôle et une cible avec systemd, Python 3.11+ et Java 21 disponible dans APT. | Environnement compatible avec les rôles. |
-| 2. [Configurer SSH](#install-ssh) | Renseigner l'adresse du serveur et le compte SSH avec sudo dans l'inventaire. | Serveur accessible dans le groupe `galaxy`. |
+| 2. [Personnaliser l’installation](#install-customization) | Choisir l’inventaire, le compte SSH et les comptes de service. | Serveur accessible et comptes identifiés. |
 | 3. [Définir le site](#install-site) | Créer `site.yml` avec le domaine public et les paramètres souhaités. | Configuration propre au déploiement. |
 | 4. [Préparer la base SIG](#install-database) | Renseigner la base, l'utilisateur SQL et son mot de passe dans `secrets.vault.yml`. | Identifiants partagés par PostgreSQL et GeoServer. |
 | 5. [Préparer les accès PostgreSQL](#install-network) | Définir les interfaces serveur et les clients autorisés dans `site.yml`. | Règles réseau prêtes avant l'installation. |
@@ -132,16 +132,7 @@ Adapter le socket et le port à `postgres_socket_dir` et `postgres_port`. Les
 minimums par défaut sont PostgreSQL 14 et PostGIS 3. La dernière commande vérifie
 que PostGIS est disponible pour ce serveur ; elle ne l'active pas dans une base.
 
-Une fois l'inventaire SSH configuré dans la section suivante, revenir sur le
-poste de contrôle et lancer le contrôle automatisé depuis `ansible/` :
-
-```bash
-ansible-playbook playbooks/install.yml -i inventories/dev/hosts.ini --tags check --ask-become-pass
-```
-
-Ajouter `-e @site.yml` pour vérifier les paramètres personnalisés. Ce contrôle
-vérifie notamment les paquets disponibles et l'accès aux dépôts Git, sans installer
-les applications.
+Pour la suite, revenir sur le poste de contrôle.
 
 Toutes les commandes suivantes s'exécutent depuis le répertoire `ansible/` du dépôt, afin de charger `ansible.cfg` et ses modules locaux :
 
@@ -149,9 +140,45 @@ Toutes les commandes suivantes s'exécutent depuis le répertoire `ansible/` du 
 cd ansible
 ```
 
+<div class="ansible-section-anchor" id="install-customization"></div>
+
+## Personnalisation de l’installation
+
+Préparer les paramètres du déploiement avant de lancer le playbook. Conserver
+les fichiers du dépôt comme valeurs par défaut et placer les personnalisations
+dans les fichiers suivants :
+
+| Fichier | Personnalisation |
+|---|---|
+| `inventories/<environnement>/hosts.ini` | Adresse du serveur cible, compte SSH, port et clé privée |
+| `site.yml` | Domaine public, comptes de service, chemins, ports et composants optionnels |
+| `secrets.vault.yml` | Mot de passe SQL, identifiants actuels de l’administrateur GeoServer et secrets Studio |
+
+Le compte SSH doit déjà exister sur la cible. Ansible crée les comptes de service
+et configure le compte SQL applicatif. Les administrateurs GeoServer et les
+utilisateurs OIDC de Studio se gèrent dans leurs applications respectives.
+
 <div class="ansible-section-anchor" id="install-ssh"></div>
 
-## Configurer la connexion SSH
+### Choisir le host et le compte SSH
+
+Si le compte de déploiement n’existe pas encore, un administrateur peut le créer
+**sur la cible** (exemple Debian/Ubuntu) :
+
+```bash
+sudo adduser deploy
+sudo usermod -aG sudo deploy
+```
+
+Depuis le **poste de contrôle**, installer votre clé publique SSH :
+
+```bash
+ssh-copy-id -i ~/.ssh/id_ed25519.pub deploy@serveur.example.org
+```
+
+Remplacer le compte, le serveur et la clé par vos valeurs. La paire de clés doit
+déjà exister ; ajouter `-p <port>` à `ssh-copy-id` si SSH utilise un autre port.
+Le playbook ne crée pas son propre compte d’accès SSH et ne modifie pas le port SSH.
 
 Adapter `inventories/dev/hosts.ini` :
 
@@ -173,9 +200,28 @@ Par défaut, le compte système `mviewer`, créé par le rôle `common`, sert à
 
 Pour utiliser une clé spécifique, ajouter `ansible_ssh_private_key_file=/chemin/vers/la/cle` sur la ligne du serveur.
 
+Pour la production, créer un inventaire distinct, par exemple
+`inventories/production/hosts.ini` :
+
+```ini
+[galaxy]
+cartes-prod ansible_host=192.0.2.20 ansible_user=deploy ansible_port=22 ansible_ssh_private_key_file=~/.ssh/id_ed25519
+```
+
+`ansible_host` est l’adresse utilisée pour SSH. Elle peut différer du domaine
+public défini par `nginx_server_name`. Remplacer l’IP d’exemple et vérifier l’accès :
+
+```bash
+ansible galaxy -i inventories/production/hosts.ini -m ping
+```
+
+Ce contrôle Ansible nécessite Python sur la cible. Conserver les éventuels mots
+de passe SSH/sudo dans le Vault, plutôt que dans l’inventaire.
+
+
 <div class="ansible-section-anchor" id="install-site"></div>
 
-## Définir les paramètres du site
+### Définir les paramètres du site
 
 Créer `site.yml` :
 
@@ -220,6 +266,59 @@ geoserver_datastore: postgis
 | `group_vars/all/postgres.yml` | Paquets, base et utilisateur par défaut, port, socket et template pg_hba |
 | `group_vars/all/geoserver.yml` | Version, empreinte de l’archive, Java, chemins, ports et catalogue PostGIS |
 | `group_vars/all/geoserver_extensions.yml` | Liste des extensions, URL des archives et empreintes SHA-256 |
+
+### Personnaliser les comptes de service et applicatifs
+
+Choisir les noms des comptes de service dans `site.yml` avant le premier déploiement :
+
+```yaml
+galaxy_user: cartographie
+galaxy_group: cartographie
+geoserver_user: geoserver_service
+geoserver_group: geoserver_service
+```
+
+| Compte | Variables | Gestion |
+|---|---|---|
+| Compte SSH de déploiement | `ansible_user` dans l’inventaire | Créé au préalable par un administrateur système, avec les droits sudo |
+| Compte Linux du service Studio | `galaxy_user`, `galaxy_group` dans `site.yml` | Créé par Ansible ; `mviewer` par défaut |
+| Compte Linux du service GeoServer | `geoserver_user`, `geoserver_group` dans `site.yml` | Créé par Ansible ; `geoserver` par défaut |
+| Utilisateur SQL applicatif | `postgres_username`, `postgres_password` dans le Vault | Créé ou configuré par Ansible ; propriétaire de la base SIG et du schéma `public` |
+| Administrateur web/API GeoServer | `geoserver_admin_username`, `geoserver_admin_password` dans le Vault | Doit correspondre à un administrateur GeoServer existant ; Ansible ne le crée ni ne le renomme |
+| Utilisateurs Studio en mode OIDC | Comptes du fournisseur d’identité, par exemple Keycloak | Créés dans ce fournisseur ; aucun compte Linux par utilisateur n’est nécessaire |
+
+Les comptes de service n’ont pas de connexion interactive et sont distincts
+d’`ansible_user`. Le compte Linux administrateur de PostgreSQL reste `postgres` ;
+`postgres_username` désigne un compte SQL applicatif. Pour personnaliser
+l’administrateur GeoServer, le modifier dans GeoServer puis mettre le Vault à jour
+avec ses identifiants actuels. Voir [les secrets applicatifs](#install-secrets)
+et [les paramètres de la base SIG](#install-database).
+
+### Activer les composants optionnels et appliquer les paramètres
+
+Exemples de paramètres supplémentaires dans `site.yml` :
+
+```yaml
+galaxy_home_enabled: false # Accueil, en-tête partagé et catalogue optionnels.
+postgres_install: false # Réutiliser PostgreSQL/PostGIS déjà installés.
+```
+
+Utiliser `postgres_install: true` (valeur par défaut) pour confier l’installation
+des paquets de base de données à Ansible. Conserver le même inventaire, les mêmes
+paramètres de site et le même Vault lors des exécutions suivantes :
+
+```bash
+ansible-playbook playbooks/install.yml \
+  -i inventories/production/hosts.ini \
+  -e @site.yml -e @secrets.vault.yml \
+  --ask-vault-pass --ask-become-pass
+```
+
+Exécuter cette commande après avoir complété les sections base de données,
+réseau et Vault ci-dessous. `-e @site.yml` remplace les valeurs par défaut chargées
+explicitement par les playbooks, y compris avec un inventaire personnalisé.
+Changer un alias d’inventaire ne crée pas de serveur, ne configure pas son DNS
+public et ne crée pas d’utilisateurs applicatifs.
 
 <div class="ansible-section-anchor" id="install-database"></div>
 

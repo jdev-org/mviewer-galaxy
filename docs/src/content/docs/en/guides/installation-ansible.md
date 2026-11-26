@@ -21,7 +21,7 @@ next:
 | Step | Action | Expected result |
 |---|---|---|
 | 1. [Check prerequisites](#install-prerequisites) | Prepare Ansible on the control machine and a target with systemd, Python 3.11+ and Java 21 available through APT. | An environment compatible with the roles. |
-| 2. [Configure SSH](#install-ssh) | Set the server address and SSH account with sudo in the inventory. | A reachable server in the `galaxy` group. |
+| 2. [Customize the installation](#install-customization) | Choose the inventory, SSH account and service accounts. | A reachable server and identified accounts. |
 | 3. [Set site parameters](#install-site) | Create `site.yml` with the public domain and desired settings. | Deployment-specific configuration. |
 | 4. [Prepare the GIS database](#install-database) | Set the database, SQL user and password in `secrets.vault.yml`. | Credentials shared by PostgreSQL and GeoServer. |
 | 5. [Prepare PostgreSQL access](#install-network) | Set server interfaces and allowed clients in `site.yml`. | Network rules ready before installation. |
@@ -132,16 +132,7 @@ Adjust the socket and port to `postgres_socket_dir` and `postgres_port`. The
 default minimums are PostgreSQL 14 and PostGIS 3. The last command checks whether
 PostGIS is available for that server; it does not enable it in a database.
 
-After configuring the SSH inventory in the next section, return to the control
-machine and run the automated checks from `ansible/`:
-
-```bash
-ansible-playbook playbooks/install.yml -i inventories/dev/hosts.ini --tags check --ask-become-pass
-```
-
-Add `-e @site.yml` to check customized settings. This checks available packages
-and access to Git repositories, among other prerequisites, without installing
-the applications.
+Return to the control machine for the remaining steps.
 
 Run every command below from the repository's `ansible/` directory so that Ansible loads `ansible.cfg` and its local modules:
 
@@ -149,9 +140,44 @@ Run every command below from the repository's `ansible/` directory so that Ansib
 cd ansible
 ```
 
+<div class="ansible-section-anchor" id="install-customization"></div>
+
+## Customize the installation
+
+Prepare your deployment settings before running the playbook. Keep repository
+files as defaults and put your overrides in the following files:
+
+| File | What to customize |
+|---|---|
+| `inventories/<environment>/hosts.ini` | Target server address, SSH user, port and private key |
+| `site.yml` | Public domain, service accounts, paths, ports and optional components |
+| `secrets.vault.yml` | SQL password, current GeoServer administrator credentials and Studio secrets |
+
+The SSH account must already exist on the target. Ansible creates the service
+accounts and provisions the application SQL account. GeoServer administrator
+accounts and Studio OIDC users are managed in their respective applications.
+
 <div class="ansible-section-anchor" id="install-ssh"></div>
 
-## Configure the SSH connection
+### Choose the host and SSH account
+
+If the deployment account does not exist yet, an administrator can create it
+**on the target** (example for Debian/Ubuntu):
+
+```bash
+sudo adduser deploy
+sudo usermod -aG sudo deploy
+```
+
+From the **control machine**, install your public SSH key:
+
+```bash
+ssh-copy-id -i ~/.ssh/id_ed25519.pub deploy@server.example.org
+```
+
+Replace the account, hostname and key with your own values. The key pair must
+already exist; add `-p <port>` to `ssh-copy-id` if SSH uses a nonstandard port.
+The playbook does not create its own SSH access account or change the SSH port.
 
 Edit `inventories/dev/hosts.ini`:
 
@@ -173,9 +199,28 @@ By default, the `mviewer` system account created by the `common` role runs Mview
 
 To use a specific key, add `ansible_ssh_private_key_file=/path/to/key` to the server line.
 
+For production, create a separate inventory, for example
+`inventories/production/hosts.ini`:
+
+```ini
+[galaxy]
+maps-prod ansible_host=192.0.2.20 ansible_user=deploy ansible_port=22 ansible_ssh_private_key_file=~/.ssh/id_ed25519
+```
+
+`ansible_host` is the address used for SSH. It can differ from the public domain
+configured through `nginx_server_name`. Replace the example IP and verify access:
+
+```bash
+ansible galaxy -i inventories/production/hosts.ini -m ping
+```
+
+This Ansible check requires Python on the target. Keep SSH/sudo passwords in
+Vault when needed, rather than in the inventory.
+
+
 <div class="ansible-section-anchor" id="install-site"></div>
 
-## Set the site parameters
+### Set the site parameters
 
 Create `site.yml`:
 
@@ -222,6 +267,56 @@ geoserver_datastore: postgis
 | `group_vars/all/postgres.yml` | Packages, database and user defaults, port, socket and pg_hba template |
 | `group_vars/all/geoserver.yml` | Version, archive checksum, Java, paths, ports and PostGIS catalog |
 | `group_vars/all/geoserver_extensions.yml` | Extension list, archive URLs and SHA-256 checksums |
+
+### Customize service and application accounts
+
+Choose service account names in `site.yml` before the first deployment:
+
+```yaml
+galaxy_user: cartographie
+galaxy_group: cartographie
+geoserver_user: geoserver_service
+geoserver_group: geoserver_service
+```
+
+| Account | Variables | How it is managed |
+|---|---|---|
+| SSH deployment user | `ansible_user` in the inventory | Created beforehand by a system administrator, with sudo access |
+| Studio Linux service account | `galaxy_user`, `galaxy_group` in `site.yml` | Created by Ansible; defaults to `mviewer` |
+| GeoServer Linux service account | `geoserver_user`, `geoserver_group` in `site.yml` | Created by Ansible; defaults to `geoserver` |
+| Application SQL user | `postgres_username`, `postgres_password` in Vault | Created or configured by Ansible; owns the GIS database and `public` schema |
+| GeoServer web/API administrator | `geoserver_admin_username`, `geoserver_admin_password` in Vault | Must match an existing GeoServer administrator; Ansible does not create or rename it |
+| Studio users in OIDC mode | Accounts in your identity provider, such as Keycloak | Created in that provider; no Linux account is required for each user |
+
+Service accounts have no interactive login and are separate from `ansible_user`.
+PostgreSQL's Linux administrator account remains `postgres`; `postgres_username`
+is an application SQL account. To change the GeoServer administrator, update it
+in GeoServer first, then update Vault with its current credentials. See
+[application secrets](#install-secrets) and [GIS database settings](#install-database).
+
+### Enable optional components and deploy your settings
+
+Examples of additional `site.yml` settings:
+
+```yaml
+galaxy_home_enabled: false # Optional home page, shared header and catalog.
+postgres_install: false # Reuse PostgreSQL/PostGIS already installed.
+```
+
+Use `postgres_install: true` (the default) when Ansible should install the database
+packages. Keep the same inventory, site settings and Vault on subsequent runs:
+
+```bash
+ansible-playbook playbooks/install.yml \
+  -i inventories/production/hosts.ini \
+  -e @site.yml -e @secrets.vault.yml \
+  --ask-vault-pass --ask-become-pass
+```
+
+Run this after completing the database, network and Vault sections below.
+`-e @site.yml` overrides the defaults explicitly loaded by the playbooks, including
+when using a custom inventory. Changing an inventory alias does not create a
+server, configure its public DNS or create application users.
 
 <div class="ansible-section-anchor" id="install-database"></div>
 
