@@ -135,13 +135,13 @@ postgres_password: ""
 
 - `postgres_port` and `postgres_socket_dir` select the local PostgreSQL server to configure.
 
-- Allowed IP addresses belong in `pg_hba.conf.j2`.
+- Set `postgres_allowed_clients` in `site.yml` to a list of client IPs/networks in CIDR format, such as `[192.0.2.10/32, 10.0.0.0/24]`. The default is `[]` (no remote clients).
 
 - The role replaces the whole `pg_hba.conf` file with this template: keep local administration and include any required rules.
 
-- Add allowed clients before the `reject` rules.
+- The default template inserts configured clients before the `reject` rules for the SIG database and user. A custom template must handle `postgres_allowed_clients` itself.
 
-- The role sets `listen_addresses = '*'`.
+- Set `postgres_listen_addresses` to the server interfaces, for example `['127.0.0.1', '::1', '192.0.2.20']`. These are server addresses, not allowed client IPs. The default is `['127.0.0.1', '::1']` (local interfaces only). Keep loopback if GeoServer uses it; changing interfaces restarts the affected cluster.
 
 - Configure the firewall for the desired access.
 

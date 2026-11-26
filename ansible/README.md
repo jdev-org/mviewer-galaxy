@@ -133,26 +133,45 @@ Les modifications locales des sous-modules ne sont pas transférées.
 
 ## 4. Préparer les accès PostgreSQL
 
-Ouvrir `roles/postgres/templates/pg_hba.conf.j2` avant le déploiement.
-Conserver les règles d'administration locale et celles utilisées par GeoServer.
+Définir les interfaces du serveur et les clients autorisés dans `site.yml` :
 
-Si des clients distants doivent accéder à PostgreSQL, ajouter leurs IP ou
-réseaux **avant les lignes `reject`**, par exemple :
+```yaml
+# IP présentes sur le serveur PostgreSQL, pas celles des clients.
+postgres_listen_addresses:
+  - 127.0.0.1
+  - '::1'
+  - 192.0.2.20
 
-```text
-host "{{ postgres_configuration.database }}" "{{ postgres_configuration.username }}" 192.0.2.10/32 scram-sha-256
+# IP ou réseaux des clients autorisés à accéder à la base SIG.
+postgres_allowed_clients:
+  - 192.0.2.10/32
+  - 10.0.0.0/24
+  - '2001:db8::10/128'
 ```
 
-Remplacer `192.0.2.10/32` par l'adresse du client autorisé.
+Il vous faudra remplacer ces exemples par les adresses de votre installation.
 
-Conserver les variables
-Jinja : elles reprennent les noms de base et d'utilisateur validés par le rôle.
+Conserver ensuite `127.0.0.1` si GeoServer se connecte à PostgreSQL sur cette adresse.
+
+`listen_addresses` définit où le serveur écoute ; les IP clientes se renseignent
+uniquement dans `postgres_allowed_clients`. Pour une IP seule, utiliser `/32`
+en IPv4 ou `/128` en IPv6.
+
+Par défaut, `postgres_listen_addresses: ['127.0.0.1', '::1']` limite l'écoute
+aux interfaces locales et `postgres_allowed_clients: []` n'ajoute aucun client distant.
+Le template conserve l'administration locale et les accès locaux de GeoServer,
+et insère les clients avant les règles de refus pour la base et l'utilisateur SIG.
 
 Le template remplace entièrement le `pg_hba.conf` du serveur sélectionné par
 `postgres_port` : reporter les règles nécessaires d'une installation existante.
-Pour utiliser un autre template, définir `postgres_hba_template` dans `site.yml`.
+Pour utiliser un autre template, définir `postgres_hba_template` dans `site.yml` ;
+ce template personnalisé doit prendre en compte `postgres_allowed_clients`.
 
-Le rôle configure `listen_addresses = '*'`.
+Pour appliquer ces paramètres sur un serveur installé :
+
+```bash
+ansible-playbook playbooks/install.yml --tags postgres -e @site.yml -e @secrets.vault.yml --ask-vault-pass --ask-become-pass
+```
 
 Adapter le pare-feu pour autoriser
 les connexions souhaitées au port PostgreSQL, **5432** par défaut.

@@ -1,4 +1,4 @@
-# Géré par Ansible : adapter les IP et réseaux de ce template AVANT l'installation.
+# Géré par Ansible : clients configurés dans postgres_allowed_clients.
 # TYPE  DATABASE  USER  ADDRESS  METHOD
 
 # Administration locale et comptes système (conserver l'accès postgres).
@@ -9,9 +9,10 @@ local all all peer
 host "{{ postgres_configuration.database }}" "{{ postgres_configuration.username }}" 127.0.0.1/32 scram-sha-256
 host "{{ postgres_configuration.database }}" "{{ postgres_configuration.username }}" ::1/128 scram-sha-256
 
-# Ajouter ici les clients SIG autorisés, AVANT les règles reject.
-# host "{{ postgres_configuration.database }}" "{{ postgres_configuration.username }}" 192.0.2.10/32 scram-sha-256
-# host "{{ postgres_configuration.database }}" "{{ postgres_configuration.username }}" 10.0.0.0/24 scram-sha-256
+# Clients SIG autorisés, avant les règles reject.
+{% for client in postgres_allowed_clients %}
+host "{{ postgres_configuration.database }}" "{{ postgres_configuration.username }}" {{ client }} scram-sha-256
+{% endfor %}
 
 # Refuser les autres clients pour ce couple base/utilisateur.
 host "{{ postgres_configuration.database }}" "{{ postgres_configuration.username }}" 0.0.0.0/0 reject

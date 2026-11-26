@@ -1,4 +1,7 @@
 ---
+- name: Vérifier les paramètres réseau PostgreSQL
+  ansible.builtin.import_tasks: validate_network.yml
+
 - name: Vérifier les variables PostgreSQL et leur mot de passe obligatoire
   galaxy_postgres:
     password: "{{ postgres_password | default('') }}"

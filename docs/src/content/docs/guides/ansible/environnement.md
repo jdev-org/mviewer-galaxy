@@ -135,13 +135,13 @@ postgres_password: ""
 
 - `postgres_port` et `postgres_socket_dir` ciblent le serveur PostgreSQL local à configurer.
 
-- Les IP autorisées se définissent dans `pg_hba.conf.j2`.
+- Définir `postgres_allowed_clients` dans `site.yml` : liste des IP/réseaux clients au format CIDR, par exemple `[192.0.2.10/32, 10.0.0.0/24]`. La valeur par défaut est `[]` (aucun client distant).
 
 - Le rôle remplace tout le fichier `pg_hba.conf` avec ce template : conserver l'administration locale et reporter les règles nécessaires.
 
-- Ajouter les clients avant les règles `reject`.
+- Le template par défaut insère ces clients avant les règles `reject` pour la base et l’utilisateur SIG. Un template personnalisé doit gérer lui-même `postgres_allowed_clients`.
 
-- Le rôle configure `listen_addresses = '*'`.
+- Définir `postgres_listen_addresses` avec les interfaces du serveur, par exemple `['127.0.0.1', '::1', '192.0.2.20']`. Ce sont les adresses du serveur, pas les IP clientes. La valeur par défaut est `['127.0.0.1', '::1']` (interfaces locales uniquement). Conserver la boucle locale si GeoServer l’utilise ; un changement d’interfaces redémarre le cluster concerné.
 
 - Le pare-feu reste à adapter aux accès souhaités.
 

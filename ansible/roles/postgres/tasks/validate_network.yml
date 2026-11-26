@@ -1,0 +1,24 @@
+---
+- name: Exiger des listes pour les interfaces et les clients PostgreSQL
+  ansible.builtin.assert:
+    that:
+      - postgres_listen_addresses | type_debug == 'list'
+      - postgres_listen_addresses | length > 0
+      - postgres_allowed_clients | type_debug == 'list'
+    fail_msg: Utiliser une liste non vide postgres_listen_addresses et une liste postgres_allowed_clients (éventuellement vide).
+
+- name: Vérifier le format des interfaces PostgreSQL
+  ansible.builtin.assert:
+    that:
+      - item is string
+      - item is match('^[a-zA-Z0-9_.*:-]+$')
+    fail_msg: Chaque interface doit être une IP du serveur, un nom d'hôte ou '*', sans espaces ni virgules.
+  loop: "{{ postgres_listen_addresses }}"
+
+- name: Vérifier le format CIDR des clients PostgreSQL
+  ansible.builtin.assert:
+    that:
+      - item is string
+      - item is match('^[0-9a-fA-F:.]+/[0-9]{1,3}$')
+    fail_msg: Chaque client doit être une adresse ou un réseau CIDR, par exemple 192.0.2.10/32 ou 2001:db8::10/128.
+  loop: "{{ postgres_allowed_clients }}"

@@ -24,7 +24,7 @@ next:
 | 2. [Configure SSH](#install-ssh) | Set the server address and SSH account with sudo in the inventory. | A reachable server in the `galaxy` group. |
 | 3. [Set site parameters](#install-site) | Create `site.yml` with the public domain and desired settings. | Deployment-specific configuration. |
 | 4. [Prepare the GIS database](#install-database) | Set the database, SQL user and password in `secrets.vault.yml`. | Credentials shared by PostgreSQL and GeoServer. |
-| 5. [Prepare PostgreSQL access](#install-network) | Edit the `pg_hba.conf.j2` template with allowed clients. | Network rules ready before installation. |
+| 5. [Prepare PostgreSQL access](#install-network) | Set server interfaces and allowed clients in `site.yml`. | Network rules ready before installation. |
 | 6. [Prepare secrets](#install-secrets) | Set GeoServer credentials, the Studio key and optional OIDC secrets, then encrypt Vault. | Secrets available to the playbook. |
 | 7. [Check and deploy](#install-deployment) | Check prerequisites, then run the playbook with site settings and secrets. | Applications installed and services configured. |
 | 8. [Check applications](#install-applications) | Open public URLs and [inspect services and logs](#install-operations). | Home page, Mviewer, Studio and GeoServer available. |
@@ -207,21 +207,21 @@ postgres_password: ""
 
 ### Prepare network access before installation
 
-- Edit `roles/postgres/templates/pg_hba.conf.j2` before deployment: this template replaces the server's `pg_hba.conf` file.
+Configure these lists in `site.yml`, loaded with `-e @site.yml`:
 
-- Keep the existing local access rules.
-
-- Add allowed client IP addresses or networks in the designated area, before the rejection rules:
-
-```text
-host "{{ postgres_configuration.database }}" "{{ postgres_configuration.username }}" 192.0.2.10/32 scram-sha-256
+```yaml
+postgres_listen_addresses:
+  - 127.0.0.1
+  - '::1'
+  - 192.0.2.20
+postgres_allowed_clients:
+  - 192.0.2.10/32
+  - 10.0.0.0/24
 ```
 
-- Replace `192.0.2.10/32` with the allowed client address or network.
+Replace the examples with your addresses. `postgres_listen_addresses` contains server interfaces, not client addresses. Keep loopback if GeoServer uses it. `postgres_allowed_clients` contains client IPs/networks in CIDR format (`/32` for one IPv4 address, `/128` for one IPv6 address).
 
-- Keep the Jinja variables: database and user names come from `secrets.vault.yml`.
-
-- Configure the firewall to allow the intended connections to the PostgreSQL port.
+The default template preserves local access and inserts client rules before the rejection rules for the SIG database and user. It replaces the entire `pg_hba.conf`: include any other rules you need in a custom template. By default, only local interfaces are used (`['127.0.0.1', '::1']`) and no remote clients are added (`[]`). Configure the firewall for the desired access.
 
 For rule syntax and authentication methods, see the [PostgreSQL documentation on `pg_hba.conf` (French)](https://docs.postgresql.fr/12/auth-pg-hba-conf.html).
 

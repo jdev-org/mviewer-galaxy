@@ -3,6 +3,11 @@ postgres_database: donneessig
 postgres_username: usersig
 postgres_port: 5432
 postgres_socket_dir: /var/run/postgresql
+# Interfaces du serveur PostgreSQL (pas les IP des clients), locales par défaut.
+postgres_listen_addresses: ['127.0.0.1', '::1']
+# IP/réseaux clients autorisés pour postgres_database et postgres_username.
+# Utiliser le format CIDR : 192.0.2.10/32 ou 2001:db8::10/128.
+postgres_allowed_clients: []
 postgres_hba_template: pg_hba.conf.j2
 postgres_log_dir: "{{ galaxy_logs_dir | default('/srv/logs') }}/postgresql"
 postgres_packages:

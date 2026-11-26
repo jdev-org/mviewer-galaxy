@@ -1,10 +1,10 @@
 ---
-- name: Faire écouter PostgreSQL sur toutes les interfaces
+- name: Faire écouter PostgreSQL sur les interfaces configurées
   ansible.builtin.blockinfile:
     path: "{{ postgres_database_result.config_file }}"
     marker: '# {mark} MVIEWER GALAXY NETWORK'
     block: |
-      listen_addresses = '*'
+      listen_addresses = '{{ postgres_listen_addresses | join(',') }}'
   register: postgres_listen_config
   notify: Restart postgresql configuration
 
@@ -76,5 +76,5 @@
       - --command
       - SHOW listen_addresses;
   register: postgres_listen_state
-  changed_when: postgres_listen_state.stdout | trim != '*'
+  changed_when: (postgres_listen_state.stdout | trim).split(',') | map('trim') | sort | list != postgres_listen_addresses | sort
   notify: Restart postgresql configuration
