@@ -5,6 +5,9 @@ mviewer_version: master
 mviewer_install_dir: "{{ galaxy_install_dir }}/mviewer"
 # Équivalent du volume Docker monté sur mviewer/apps.
 mviewer_apps_dir: "{{ galaxy_shared_data_dir }}/mviewer/apps"
+# Dépôt facultatif des cartes, géré uniquement par playbooks/update_apps.yml.
+mviewer_apps_repository: ""
+mviewer_apps_version: HEAD
 # Carte de repli de l’accueil : copiée uniquement si default.xml est absent.
 mviewer_default_map_source: "{{ playbook_dir }}/../../resources/mviewer/apps/default.xml"
 mviewer_apps_backup_dir: "{{ mviewer_install_dir }}.apps-backup"

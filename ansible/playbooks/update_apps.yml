@@ -1,0 +1,55 @@
+---
+- name: Cloner ou mettre à jour le dépôt des cartes Mviewer
+  hosts: galaxy
+  become: true
+  gather_facts: false
+  vars_files:
+    - ../group_vars/all/common.yml
+    - ../group_vars/all/mviewer.yml
+  pre_tasks:
+    - name: Vérifier les paramètres du dépôt des cartes
+      ansible.builtin.assert:
+        that:
+          - mviewer_apps_repository | trim | length > 0
+          - mviewer_apps_version | string | trim | length > 0
+          - mviewer_apps_dir is match('^/')
+          - mviewer_apps_dir | normpath != '/'
+        fail_msg: Renseigner mviewer_apps_repository, mviewer_apps_version et un chemin absolu mviewer_apps_dir dans site.yml.
+
+    - name: Examiner le répertoire Git des cartes
+      ansible.builtin.stat:
+        path: "{{ mviewer_apps_dir }}/.git"
+      register: mviewer_apps_git
+
+    - name: Examiner les fichiers existants avant le premier clonage
+      ansible.builtin.find:
+        paths: "{{ mviewer_apps_dir }}"
+        hidden: true
+        file_type: any
+        recurse: false
+      register: mviewer_apps_existing
+      when: not mviewer_apps_git.stat.exists
+
+    - name: Préserver les cartes présentes hors dépôt Git
+      ansible.builtin.assert:
+        that:
+          - mviewer_apps_existing.matched | int == 0
+        fail_msg: Le répertoire des cartes contient déjà des fichiers sans dépôt Git. Les sauvegarder et les déplacer avant de relancer ce playbook, ou choisir un autre mviewer_apps_dir.
+      when: not mviewer_apps_git.stat.exists
+  tasks:
+    - name: Préparer le répertoire des cartes
+      ansible.builtin.file:
+        path: "{{ mviewer_apps_dir }}"
+        state: directory
+        owner: "{{ galaxy_user }}"
+        group: "{{ galaxy_group }}"
+        mode: '0755'
+
+    - name: Synchroniser le dépôt des cartes sans écraser les modifications locales
+      become_user: "{{ galaxy_user }}"
+      ansible.builtin.git:
+        repo: "{{ mviewer_apps_repository }}"
+        dest: "{{ mviewer_apps_dir }}"
+        version: "{{ mviewer_apps_version }}"
+        update: true
+        force: false
