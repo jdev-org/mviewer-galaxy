@@ -9,6 +9,8 @@
     repo: "{{ mviewer_repository }}"
     dest: "{{ mviewer_install_dir }}"
     version: "{{ mviewer_version }}"
+    recursive: true
+    track_submodules: false
     force: false
   when: not mviewer_git_directory.stat.exists
 
@@ -85,5 +87,7 @@
     repo: "{{ mviewer_repository }}"
     dest: "{{ mviewer_install_dir }}"
     version: "{{ mviewer_version }}"
+    recursive: true
+    track_submodules: false
     force: false
   when: mviewer_git_directory.stat.exists
