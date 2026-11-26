@@ -6,6 +6,7 @@ import hashlib
 import hmac
 import json
 import os
+import re
 import secrets
 import stringprep
 from unicodedata import ucd_3_2_0
@@ -61,6 +62,23 @@ def password_verifier(password):
     return 'SCRAM-SHA-256$4096:{}${}:{}'.format(encode(salt), encode(stored), encode(server))
 
 
+def inspect_database(query, database, minimum_version, minimum_postgis_version):
+    """Vérifier les versions et l'existence de la base avant toute écriture SQL."""
+    version_number = int(query('SHOW server_version_num;'))
+    version = query('SHOW server_version;')
+    if version_number < minimum_version * 10000:
+        raise ValueError('PostgreSQL ' + version + ' est inférieur à la version minimale ' + str(minimum_version) + '. Aucune migration automatique n’est effectuée.')
+    owner = query("SELECT pg_get_userbyid(datdba) FROM pg_database WHERE datname = '" + database + "';")
+    postgis_version = query("SELECT extversion FROM pg_extension WHERE extname = 'postgis';", database) if owner else ''
+    available_postgis_version = postgis_version or query("SELECT default_version FROM pg_available_extensions WHERE name = 'postgis';")
+    if not available_postgis_version:
+        raise ValueError('PostGIS n’est pas disponible pour ce serveur PostgreSQL. Installer les paquets correspondant à sa version majeure.')
+    major = re.match(r'^(\d+)(?:\.|$)', available_postgis_version)
+    if not major or int(major.group(1)) < minimum_postgis_version:
+        raise ValueError('PostGIS ' + available_postgis_version + ' est incompatible avec la version minimale ' + str(minimum_postgis_version) + '. Aucune mise à niveau automatique n’est effectuée.')
+    return owner, version, postgis_version
+
+
 def main():
     module = AnsibleModule(
         argument_spec=dict(
@@ -70,10 +88,15 @@ def main():
             port=dict(type='int', default=5432),
             socket_dir=dict(type='path', default='/var/run/postgresql'),
             validate_only=dict(type='bool', default=False),
+            inspect_only=dict(type='bool', default=False),
+            minimum_version=dict(type='int', default=14),
+            minimum_postgis_version=dict(type='int', default=3),
         ),
         supports_check_mode=True,
     )
     try:
+        if module.params['minimum_version'] < 1 or module.params['minimum_postgis_version'] < 1:
+            raise ValueError('Les versions minimales doivent être des entiers positifs.')
         database, username, password = read_configuration(
             module.params['password'], module.params['database'], module.params['username'])
     except ValueError as error:
@@ -101,6 +124,16 @@ def main():
             module.fail_json(msg='Échec de la requête PostgreSQL. Vérifier le service, le port et les journaux PostgreSQL.')
         return stdout.strip()
 
+    try:
+        owner, server_version, postgis_version = inspect_database(
+            query, database, module.params['minimum_version'], module.params['minimum_postgis_version'])
+    except ValueError as error:
+        module.fail_json(msg=str(error))
+    database_reused = bool(owner)
+    if module.params['inspect_only']:
+        module.exit_json(changed=False, database=database, database_reused=database_reused,
+                         server_version=server_version, postgis_version=postgis_version)
+
     # Les identifiants sont validés ci-dessus et les secrets transmis par stdin.
     role_json = query("SELECT row_to_json(r) FROM (SELECT rolpassword, rolcanlogin, "
                       "rolsuper, rolcreatedb, rolcreaterole, rolreplication, rolbypassrls "
@@ -119,7 +152,6 @@ def main():
                 sql += " PASSWORD '" + password_verifier(password) + "'"
             query(sql + ';')
 
-    owner = query("SELECT pg_get_userbyid(datdba) FROM pg_database WHERE datname = '" + database + "';")
     if owner != username:
         changes.append('database')
         if not module.check_mode:
@@ -128,11 +160,11 @@ def main():
             else:
                 query('CREATE DATABASE "' + database + '" OWNER "' + username + '";')
 
-    extension = query("SELECT 1 FROM pg_extension WHERE extname = 'postgis';", database) if owner or not module.check_mode else ''
-    if not extension:
+    if not postgis_version:
         changes.append('postgis')
         if not module.check_mode:
             query('CREATE EXTENSION IF NOT EXISTS postgis;', database)
+            postgis_version = query("SELECT extversion FROM pg_extension WHERE extname = 'postgis';", database)
     if owner or not module.check_mode:
         schema_owner = query("SELECT pg_get_userbyid(nspowner) FROM pg_namespace WHERE nspname = 'public';", database)
         if schema_owner != username:
@@ -143,6 +175,7 @@ def main():
                 else:
                     query('CREATE SCHEMA public AUTHORIZATION "' + username + '";', database)
     module.exit_json(changed=bool(changes), changes=changes, database=database, username=username,
+                     database_reused=database_reused, server_version=server_version, postgis_version=postgis_version,
                      hba_file=query('SHOW hba_file;'), config_file=query('SHOW config_file;'))
 
 
