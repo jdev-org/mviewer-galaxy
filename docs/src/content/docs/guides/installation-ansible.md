@@ -82,6 +82,67 @@ next:
 
 - Aucune collection Ansible externe n'est nécessaire.
 
+### Vérifier les prérequis
+
+Sur le poste de contrôle, vérifier Ansible Core (2.16+) et Git :
+
+```bash
+ansible --version
+git --version
+```
+
+Se connecter ensuite à la cible en remplaçant l'utilisateur et le serveur :
+
+```bash
+ssh deploy@serveur.example.org
+```
+
+Dans cette session SSH, vérifier la distribution (Debian 12+ ou Ubuntu 22.04+),
+le processus principal (`systemd`) et les droits sudo :
+
+```bash
+cat /etc/os-release
+ps -p 1 -o comm=
+sudo -v
+```
+
+Vérifier les versions déjà installées, puis les candidats disponibles dans APT :
+
+```bash
+python3 --version
+java -version
+apt-cache policy python3 openjdk-21-jre-headless
+```
+
+Python doit être en version 3.11+ et Java en version 21. Une commande introuvable
+indique que le composant n'est pas encore installé : vérifier alors le candidat
+APT. Un candidat absent ou insuffisant nécessite de préparer les dépôts avant
+le déploiement. `apt-cache policy` utilise le cache APT local ; le rafraîchir avec
+`sudo apt-get update` si nécessaire.
+
+Si `postgres_install: false`, vérifier aussi le cluster existant et sa version :
+
+```bash
+pg_lsclusters
+sudo -u postgres psql -h /var/run/postgresql -p 5432 -d postgres -c 'SHOW server_version;'
+sudo -u postgres psql -h /var/run/postgresql -p 5432 -d postgres -c "SELECT name, default_version FROM pg_available_extensions WHERE name = 'postgis';"
+```
+
+Adapter le socket et le port à `postgres_socket_dir` et `postgres_port`. Les
+minimums par défaut sont PostgreSQL 14 et PostGIS 3. La dernière commande vérifie
+que PostGIS est disponible pour ce serveur ; elle ne l'active pas dans une base.
+
+Une fois l'inventaire SSH configuré dans la section suivante, revenir sur le
+poste de contrôle et lancer le contrôle automatisé depuis `ansible/` :
+
+```bash
+ansible-playbook playbooks/install.yml -i inventories/dev/hosts.ini --tags check --ask-become-pass
+```
+
+Ajouter `-e @site.yml` pour vérifier les paramètres personnalisés. Ce contrôle
+vérifie notamment les paquets disponibles et l'accès aux dépôts Git, sans installer
+les applications.
+
 Toutes les commandes suivantes s'exécutent depuis le répertoire `ansible/` du dépôt, afin de charger `ansible.cfg` et ses modules locaux :
 
 ```bash

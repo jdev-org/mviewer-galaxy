@@ -82,6 +82,67 @@ next:
 
 - No external Ansible collection is required.
 
+### Check prerequisites
+
+On the control machine, check Ansible Core (2.16+) and Git:
+
+```bash
+ansible --version
+git --version
+```
+
+Then connect to the target, replacing the user and server:
+
+```bash
+ssh deploy@server.example.org
+```
+
+In that SSH session, check the distribution (Debian 12+ or Ubuntu 22.04+),
+the main process (`systemd`) and sudo privileges:
+
+```bash
+cat /etc/os-release
+ps -p 1 -o comm=
+sudo -v
+```
+
+Check installed versions, then the candidates available through APT:
+
+```bash
+python3 --version
+java -version
+apt-cache policy python3 openjdk-21-jre-headless
+```
+
+Python must be version 3.11+ and Java version 21. A missing command means the
+component is not installed yet: check its APT candidate instead. A missing or
+insufficient candidate requires preparing the repositories before deployment.
+`apt-cache policy` uses the local APT cache; refresh it with `sudo apt-get update`
+if necessary.
+
+If `postgres_install: false`, also check the existing cluster and its version:
+
+```bash
+pg_lsclusters
+sudo -u postgres psql -h /var/run/postgresql -p 5432 -d postgres -c 'SHOW server_version;'
+sudo -u postgres psql -h /var/run/postgresql -p 5432 -d postgres -c "SELECT name, default_version FROM pg_available_extensions WHERE name = 'postgis';"
+```
+
+Adjust the socket and port to `postgres_socket_dir` and `postgres_port`. The
+default minimums are PostgreSQL 14 and PostGIS 3. The last command checks whether
+PostGIS is available for that server; it does not enable it in a database.
+
+After configuring the SSH inventory in the next section, return to the control
+machine and run the automated checks from `ansible/`:
+
+```bash
+ansible-playbook playbooks/install.yml -i inventories/dev/hosts.ini --tags check --ask-become-pass
+```
+
+Add `-e @site.yml` to check customized settings. This checks available packages
+and access to Git repositories, among other prerequisites, without installing
+the applications.
+
 Run every command below from the repository's `ansible/` directory so that Ansible loads `ansible.cfg` and its local modules:
 
 ```bash
