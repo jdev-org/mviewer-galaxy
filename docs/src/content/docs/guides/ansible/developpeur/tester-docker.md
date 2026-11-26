@@ -145,6 +145,18 @@ Aucun mot de passe sudo n'est demandé pour `deploy` dans cette image.
 
 Relancer la dernière commande pour vérifier l'idempotence : à configuration et sources inchangées, le récapitulatif doit indiquer `changed=0` et `failed=0`.
 
+## Mettre à jour les couleurs et l’image de l’accueil
+
+Modifier `header/theme.css`, `header/custom.css` ou `home/config.js`, puis
+recopier les fichiers sur le conteneur depuis `ansible/` :
+
+```bash
+ansible-playbook playbooks/update_home.yml -i "$MVIEWER_TEST_DIR/hosts.ini"
+```
+
+Le compte SSH de test dispose de sudo sans mot de passe. Aucun secret applicatif
+n’est requis pour cette commande. Recharger ensuite `http://localhost:8088/accueil/`.
+
 ## Configurer le front de Studio
 
 Le fichier `docs/examples/ansible-docker/mviewerstudio/src/static/config.json` fournit une configuration du front adaptée à cette cible.
@@ -184,7 +196,7 @@ Cette copie sert au test manuel : une nouvelle exécution du rôle `mviewerstudi
 
 | URL depuis le poste de contrôle | Service | Port dans le conteneur |
 |---|---|---|
-| `http://localhost:8088/home/` | Accueil | nginx 80 |
+| `http://localhost:8088/accueil/` | Accueil | nginx 80 |
 | `http://localhost:8088/mviewer/` | Mviewer | nginx 80 |
 | `http://localhost:8088/mviewerstudio/` | Studio via nginx | Gunicorn 5007 |
 | `http://localhost:8088/geoserver/` | GeoServer via nginx | Jetty 8080 |

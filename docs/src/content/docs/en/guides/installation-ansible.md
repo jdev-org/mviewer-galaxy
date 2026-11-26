@@ -347,7 +347,8 @@ The default deployment also installs 14 extensions listed with their URLs and SH
 
 | Service | URL or connection | Access port | Destination on the server |
 |---|---|---|---|
-| Home page | `http://maps.example.org/` or `/home/` | `80` | nginx, static files |
+| Home page | `http://maps.example.org/` or `/accueil/` | `80` | nginx, static files |
+| Catalogue | `http://maps.example.org/catalogue/` | `80` | nginx, static files |
 | Mviewer | `http://maps.example.org/mviewer/` | `80` | nginx, static files |
 | Studio | `http://maps.example.org/mviewerstudio/` | `80` | Gunicorn on `127.0.0.1:5007` |
 | GeoServer | `http://maps.example.org/geoserver/` | `80` | Jetty on `127.0.0.1:8080` |
@@ -383,6 +384,8 @@ The default deployment also installs 14 extensions listed with their URLs and SH
 - Provide its current value through `geoserver_admin_password` in the Vault file for subsequent deployments.
 
 - The role does not change the administrator password itself.
+
+The home page and catalogue are deployed from the local `home/`, `header/` and `catalogue/` directories. See [home-page customization and redeployment](/mviewer-galaxy/en/guides/ansible/environnement/#home-page-header-and-catalogue). For OIDC, also allow the public `/accueil/` URL as a post-logout redirect.
 
 <div class="ansible-section-anchor" id="install-cors"></div>
 
@@ -492,6 +495,8 @@ These useful directories match the default installation.
 | Server directory | Contents and purpose |
 |---|---|
 | `/var/www/mviewergalaxy/home/` | Static home page |
+| `/var/www/mviewergalaxy/header/` | Shared header and theme |
+| `/var/www/mviewergalaxy/catalogue/` | Map catalogue |
 | `/var/www/mviewergalaxy/mviewer/` | Mviewer sources and `apps`, `store`, `public` links |
 | `/srv/apps/mviewerstudio/` | Studio sources and `.venv/` virtual environment |
 | `/opt/geoserver/3.0.2/` | GeoServer and Jetty distribution; path follows `geoserver_version` |

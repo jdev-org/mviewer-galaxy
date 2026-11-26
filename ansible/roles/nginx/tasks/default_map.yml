@@ -1,0 +1,17 @@
+---
+- name: Créer le répertoire des configurations Mviewer si nécessaire
+  ansible.builtin.file:
+    path: "{{ mviewer_apps_dir }}"
+    state: directory
+    owner: "{{ galaxy_user }}"
+    group: "{{ galaxy_group }}"
+    mode: '0755'
+
+- name: Installer la carte de repli uniquement si elle est absente
+  ansible.builtin.copy:
+    src: "{{ mviewer_default_map_source }}"
+    dest: "{{ mviewer_apps_dir }}/default.xml"
+    force: false
+    owner: "{{ galaxy_user }}"
+    group: "{{ galaxy_group }}"
+    mode: '0644'

@@ -1,0 +1,14 @@
+{
+  "config": {
+    "logo": "",
+    "searchable": true,
+    "template": "./template/catalogue.mst",
+    "searchKeys": [
+      "tags",
+      "title"
+    ],
+    "placeholder": "Rechercher une carte",
+    "inputMin": 2
+  },
+  "data": []
+}

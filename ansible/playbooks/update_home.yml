@@ -1,0 +1,32 @@
+---
+- name: Mettre à jour l'accueil et ses ressources partagées
+  hosts: galaxy
+  become: true
+  gather_facts: false
+  vars_files:
+    - ../group_vars/all/common.yml
+  pre_tasks:
+    - name: Signaler que le portail est désactivé
+      ansible.builtin.debug:
+        msg: Accueil désactivé (galaxy_home_enabled=false). Aucune copie ; rejouer install.yml pour appliquer les routes nginx et l'environnement Studio.
+      when: not (galaxy_home_enabled | bool)
+
+    - name: Ignorer la mise à jour du portail désactivé
+      ansible.builtin.meta: end_host
+      when: not (galaxy_home_enabled | bool)
+
+    - name: Vérifier la présence de l'accueil installé
+      ansible.builtin.stat:
+        path: "{{ galaxy_home_dir }}/index.html"
+      register: galaxy_installed_home
+
+    - name: Exiger une installation existante
+      ansible.builtin.assert:
+        that:
+          - galaxy_installed_home.stat.isreg | default(false)
+        fail_msg: Exécuter playbooks/install.yml avant de mettre à jour les fichiers de l'accueil.
+  tasks:
+    - name: Actualiser l'accueil, l'en-tête et le catalogue
+      ansible.builtin.include_role:
+        name: nginx
+        tasks_from: static

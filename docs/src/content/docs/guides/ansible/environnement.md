@@ -76,7 +76,7 @@ galaxy_public_scheme: http
 | `geoserver_port` | Port interne de Jetty ; `8080` par défaut. |
 | `galaxy_public_scheme` | Schéma public `http` ou `https` transmis aux applications par nginx. |
 
-- Nginx sert `/home/`, `/mviewer/`, `/mviewerstudio/` et `/geoserver/`.
+- Nginx sert `/accueil/`, `/header/`, `/catalogue/`, `/mviewer/`, `/mviewerstudio/` et `/geoserver/`.
 
 - Studio et GeoServer écoutent localement par défaut.
 
@@ -186,6 +186,50 @@ mviewerstudio_auth_mode: public
 - Renseigner l'issuer, le client et son secret dans les variables `mviewerstudio_oidc_*`.
 
 - Le callback doit correspondre au domaine, au schéma public et à `mviewerstudio_url_prefix`.
+
+## Installer sans portail d’accueil
+
+Définir cette option dans `site.yml`, chargé avec `-e @site.yml` :
+
+```yaml
+galaxy_home_enabled: false
+```
+
+La valeur par défaut est `true`. Quand l’option est désactivée, Ansible ignore
+la copie de l’accueil, de l’en-tête partagé, du catalogue et de la carte de
+repli. nginx redirige `/` vers `/mviewer/`, et Studio utilise le même retour.
+
+Sur une installation existante, rejouer le déploiement complet avec cette
+option pour adapter nginx et l’environnement Studio. Les fichiers statiques
+existants sont conservés sur disque mais ne sont plus exposés. `update_home.yml`
+ignore la copie lorsque l’option est désactivée ; il ne modifie pas les routes nginx.
+
+## Accueil, en-tête et catalogue
+
+Ansible copie les répertoires locaux `home/`, `header/` et `catalogue/` sur la
+cible. Les conserver à côté de `ansible/` dans la copie du dépôt sur le poste
+de contrôle. Le rôle `nginx` conserve leur contenu sans interpréter le
+JavaScript ou les templates Mustache comme du Jinja.
+
+| Source locale | Variable du répertoire cible | URL publique |
+|---|---|---|
+| `home/` | `galaxy_home_dir` | `/accueil/` (la racine publique y redirige) |
+| `header/` | `galaxy_header_dir` | `/header/` |
+| `catalogue/` | `galaxy_catalogue_dir` | `/catalogue/` |
+
+- Modifier `header/config.js` pour l’identité et la navigation, `home/config.js` pour l’image d’accueil et `catalogue/data.json` pour les cartes et leurs favoris.
+
+- Quand le catalogue est vide, l’accueil pointe vers `/apps/default.xml`. Le rôle `nginx` le copie depuis `resources/mviewer/apps/default.xml` uniquement s’il est absent. Une carte existante est conservée ; `mviewer_default_map_source` permet de fournir un autre exemple initial.
+
+- Pour utiliser d’autres sources locales, définir `galaxy_home_source_dir`, `galaxy_header_source_dir` et `galaxy_catalogue_source_dir` dans `site.yml`.
+
+- Sur un serveur installé, lancer `ansible-playbook playbooks/update_home.yml -e @site.yml --ask-become-pass` pour actualiser l’accueil, l’en-tête et le catalogue. Omettre le fichier de site s’il n’existe pas ; charger le Vault seulement si les mots de passe de connexion l’exigent. Ajouter `--check --diff` pour prévisualiser les changements.
+
+- Ce playbook copie seulement les fichiers statiques, sans redémarrer les services. Recharger la page pour voir les changements. Utiliser `playbooks/install.yml --tags nginx` si les routes ou la configuration nginx doivent aussi être actualisées.
+
+- Le lien Studio pointe directement vers `/mviewerstudio/`. Si son préfixe est personnalisé, adapter `header/config.js`, `home/index.html` et `catalogue/index.html`. Les routes `/portal/login`, `/portal/logout` et `/portal/session` utilisent le préfixe Studio configuré.
+
+- Pour OIDC, autoriser le retour après déconnexion vers l’URL publique `https://votre-domaine/accueil/`. Un déploiement complet adapte l’environnement Studio pour renvoyer les visiteurs anonymes à l’accueil.
 
 ## Ajouter ou mettre à jour les extensions GeoServer
 

@@ -343,7 +343,8 @@ Le déploiement installe aussi les 14 extensions listées avec leurs URL et empr
 
 | Service | URL ou connexion | Port d'accès | Destination sur le serveur |
 |---|---|---|---|
-| Accueil | `http://cartes.example.org/` ou `/home/` | `80` | nginx, fichiers statiques |
+| Accueil | `http://cartes.example.org/` ou `/accueil/` | `80` | nginx, fichiers statiques |
+| Catalogue | `http://cartes.example.org/catalogue/` | `80` | nginx, fichiers statiques |
 | Mviewer | `http://cartes.example.org/mviewer/` | `80` | nginx, fichiers statiques |
 | Studio | `http://cartes.example.org/mviewerstudio/` | `80` | Gunicorn sur `127.0.0.1:5007` |
 | GeoServer | `http://cartes.example.org/geoserver/` | `80` | Jetty sur `127.0.0.1:8080` |
@@ -381,6 +382,8 @@ Le déploiement installe aussi les 14 extensions listées avec leurs URL et empr
 - Fournir sa valeur actuelle via `geoserver_admin_password` dans le fichier Vault pour les déploiements suivants.
 
 - Le rôle ne change pas lui-même le mot de passe administrateur.
+
+L’accueil et le catalogue sont déployés depuis les répertoires locaux `home/`, `header/` et `catalogue/`. Voir [la personnalisation et le redéploiement de l’accueil](/mviewer-galaxy/guides/ansible/environnement/#accueil-en-tête-et-catalogue). Pour OIDC, autoriser aussi l’URL publique `/accueil/` comme retour après déconnexion.
 
 <div class="ansible-section-anchor" id="install-cors"></div>
 
@@ -492,6 +495,8 @@ Les répertoires utiles ci-dessous correspondent à l'installation par défaut.
 | Répertoire sur le serveur | Contenu et utilité |
 |---|---|
 | `/var/www/mviewergalaxy/home/` | Accueil statique |
+| `/var/www/mviewergalaxy/header/` | En-tête et thème partagés |
+| `/var/www/mviewergalaxy/catalogue/` | Catalogue des cartes |
 | `/var/www/mviewergalaxy/mviewer/` | Sources Mviewer et liens `apps`, `store`, `public` |
 | `/srv/apps/mviewerstudio/` | Sources Studio et virtualenv `.venv/` |
 | `/opt/geoserver/3.0.2/` | Distribution GeoServer et Jetty ; chemin lié à `geoserver_version` |

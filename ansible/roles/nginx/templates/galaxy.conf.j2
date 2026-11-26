@@ -2,20 +2,46 @@
 server {
     listen {{ nginx_http_port }};
     server_name {{ nginx_server_name }};
+    # Conserver le domaine et le port publics, notamment derrière Docker.
+    absolute_redirect off;
     client_max_body_size 20m;
     autoindex off;
     access_log {{ nginx_log_dir }}/access.log;
     error_log {{ nginx_log_dir }}/error.log;
 
-    location = /home {
-        return 302 /home/$is_args$args;
+{% if galaxy_home_enabled | bool %}
+    location = /accueil {
+        return 302 /accueil/$is_args$args;
     }
 
-    location /home/ {
+    location /accueil/ {
         alias {{ galaxy_home_dir }}/;
         index index.html;
     }
 
+    location /header/ {
+        alias {{ galaxy_header_dir }}/;
+    }
+
+    # L'accueil utilise ces chemins absolus depuis / et /accueil/.
+    location /assets/ {
+        alias {{ galaxy_home_dir }}/assets/;
+    }
+
+    location = /config.js {
+        alias {{ galaxy_home_dir }}/config.js;
+    }
+
+    location = /catalogue {
+        return 302 /catalogue/$is_args$args;
+    }
+
+    location /catalogue/ {
+        alias {{ galaxy_catalogue_dir }}/;
+        index index.html;
+    }
+
+{% endif %}
     location ~ /\. {
         deny all;
     }
@@ -70,12 +96,31 @@ server {
         proxy_set_header X-Forwarded-For $remote_addr;
         proxy_set_header X-Forwarded-Proto {{ galaxy_public_scheme }};
         proxy_set_header X-Forwarded-Host $http_host;
-        proxy_redirect "~^(.*[?&]post_logout_redirect_uri=)[^&]*(.*)$" $1{{ galaxy_public_scheme }}://$http_host/mviewer/$2;
+        proxy_redirect "~^(.*[?&]post_logout_redirect_uri=)[^&]*(.*)$" $1{{ galaxy_public_scheme }}://$http_host{{ galaxy_landing_path }}$2;
         proxy_pass http://127.0.0.1:{{ mviewerstudio_port }};
     }
 
+{% if galaxy_home_enabled | bool %}
+    location = /portal/login {
+        return 302 /{{ mviewerstudio_url_prefix }}/auth/login?next={{ galaxy_landing_path }};
+    }
+
+    location = /portal/logout {
+        return 302 /{{ mviewerstudio_url_prefix }}/logout;
+    }
+
+    location = /portal/session {
+        proxy_set_header Host $http_host;
+        proxy_set_header X-Forwarded-Proto {{ galaxy_public_scheme }};
+        proxy_set_header X-Forwarded-Host $http_host;
+        proxy_pass http://127.0.0.1:{{ mviewerstudio_port }}/{{ mviewerstudio_url_prefix }}/api/user;
+        proxy_hide_header Cache-Control;
+        add_header Cache-Control "no-store" always;
+    }
+
+{% endif %}
     location = / {
-        return 302 /home/;
+        return 302 {{ galaxy_landing_path }};
     }
 
     location / {

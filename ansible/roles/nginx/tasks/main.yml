@@ -2,6 +2,8 @@
 - name: Configurer les journaux et leur rotation pour nginx
   ansible.builtin.include_role:
     name: logging
+    apply:
+      tags: [nginx]
   vars:
     logging_application: nginx
     logging_directory: "{{ nginx_log_dir }}"
@@ -23,21 +25,13 @@
       line: "\taccess_log {{ nginx_log_dir }}/access.log;"
   notify: Validate and reload nginx
 
-- name: Créer le répertoire de l'accueil
-  ansible.builtin.file:
-    path: "{{ galaxy_home_dir }}"
-    state: directory
-    owner: root
-    group: root
-    mode: '0755'
+- name: Déployer les sources de l'accueil, de l'en-tête et du catalogue
+  ansible.builtin.import_tasks: static.yml
+  when: galaxy_home_enabled | bool
 
-- name: Installer la page d'accueil
-  ansible.builtin.template:
-    src: home.html.j2
-    dest: "{{ galaxy_home_dir }}/index.html"
-    owner: root
-    group: root
-    mode: '0644'
+- name: Préparer la carte de repli de l'accueil
+  ansible.builtin.import_tasks: default_map.yml
+  when: galaxy_home_enabled | bool
 
 - name: Installer le site nginx
   ansible.builtin.template:

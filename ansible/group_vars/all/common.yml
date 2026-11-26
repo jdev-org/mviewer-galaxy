@@ -2,7 +2,26 @@
 galaxy_user: mviewer
 galaxy_group: mviewer
 galaxy_install_dir: /var/www/mviewergalaxy
+# Portail facultatif : accueil, en-tête partagé et catalogue.
+galaxy_home_enabled: true
+galaxy_landing_path: "{{ '/accueil/' if galaxy_home_enabled | bool else '/mviewer/' }}"
 galaxy_home_dir: "{{ galaxy_install_dir }}/home"
+galaxy_header_dir: "{{ galaxy_install_dir }}/header"
+galaxy_catalogue_dir: "{{ galaxy_install_dir }}/catalogue"
+# Sources statiques locales sur le poste de contrôle Ansible.
+galaxy_home_source_dir: "{{ playbook_dir }}/../../home"
+galaxy_header_source_dir: "{{ playbook_dir }}/../../header"
+galaxy_catalogue_source_dir: "{{ playbook_dir }}/../../catalogue"
+galaxy_static_directories:
+  - name: home
+    src: "{{ galaxy_home_source_dir }}"
+    dest: "{{ galaxy_home_dir }}"
+  - name: header
+    src: "{{ galaxy_header_source_dir }}"
+    dest: "{{ galaxy_header_dir }}"
+  - name: catalogue
+    src: "{{ galaxy_catalogue_source_dir }}"
+    dest: "{{ galaxy_catalogue_dir }}"
 galaxy_shared_data_dir: /srv/data
 galaxy_logs_dir: /srv/logs
 galaxy_data_dir: /var/lib/mviewer-galaxy

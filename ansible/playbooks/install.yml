@@ -18,7 +18,7 @@
           - mviewerstudio_secret_key | default('') | length >= 32
           - mviewerstudio_auth_mode in ['public', 'authlib']
           - mviewerstudio_url_prefix is match('^[a-zA-Z0-9_-]+$')
-          - mviewerstudio_url_prefix not in ['mviewer', 'apps', 'home', 'geoserver']
+          - mviewerstudio_url_prefix not in ['mviewer', 'apps', 'home', 'accueil', 'header', 'catalogue', 'assets', 'portal', 'geoserver']
           - mviewerstudio_port | int > 1023
           - mviewerstudio_port | int < 65536
           - nginx_http_port | int > 0
@@ -48,4 +48,5 @@
       tags: [geoserver]
     - mviewer
     - mviewerstudio
-    - nginx
+    - role: nginx
+      tags: [nginx]

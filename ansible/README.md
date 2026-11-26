@@ -125,6 +125,10 @@ Les valeurs de `-e @site.yml` les remplacent. Si plusieurs fichiers
 
 Les sources sont clonées sur la cible depuis les dépôts configurés.
 
+Les fichiers de `home/`, `header/` et `catalogue/` sont copiés depuis le dépôt
+local du poste de contrôle. Conserver ces trois répertoires à côté de `ansible/`
+avant de lancer l’installation.
+
 Les modifications locales des sous-modules ne sont pas transférées.
 
 ## 4. Préparer les accès PostgreSQL
@@ -265,7 +269,7 @@ Configurer le fournisseur externe, par exemple Keycloak :
 |---|---|
 | Client | Client confidentiel `mviewerstudio`, avec le secret renseigné dans le Vault |
 | Callback | `https://cartes.example.org/mviewerstudio/auth/callback`, à adapter au domaine, au schéma et au préfixe |
-| Déconnexion | Autoriser les URL de retour vers Mviewer |
+| Déconnexion | Autoriser `https://cartes.example.org/accueil/`, à adapter au domaine et au schéma publics |
 | Accès utilisateur | Groupe `MVIEWER_ACCESS` par défaut |
 | Organisation | Claim attendu par `mviewerstudio_oidc_claims_mapping` |
 
@@ -373,7 +377,8 @@ le domaine configuré dans `nginx_server_name` :
 
 | Brique | URL ou adresse | Port par défaut | Version configurée |
 |---|---|---|---|
-| Accueil nginx | `http://<serveur>/home/` | 80 | Paquet APT de la cible |
+| Accueil nginx | `http://<serveur>/accueil/` | 80 | Paquet APT de la cible |
+| Catalogue | `http://<serveur>/catalogue/` | 80 via nginx | Fichiers statiques du dépôt |
 | Mviewer | `http://<serveur>/mviewer/` | 80 via nginx | Branche `master` |
 | Mviewer Studio | `http://<serveur>/mviewerstudio/` | 80 → 5007 local | Branche `oauth2-proxy-keycloak` |
 | GeoServer | `http://<serveur>/geoserver/web/` | 80 → 8080 local | 3.0.2 avec Java 21 |
@@ -382,7 +387,7 @@ le domaine configuré dans `nginx_server_name` :
 Studio et GeoServer écoutent sur `127.0.0.1`.
 
 nginx publie leurs URL ; `/`
-redirige vers `/home/`. Son site par défaut est désactivé, les autres sites sont
+redirige vers `/accueil/`. Son site par défaut est désactivé, les autres sites sont
 conservés.
 
 Adapter le schéma et le port des URL si HTTPS ou un autre port HTTP
@@ -398,6 +403,90 @@ avant de publier le service, puis mettre à jour `geoserver_admin_password` dans
 le Vault pour les prochaines exécutions.
 
 En cas d'échec, consulter le [guide de dépannage](../docs/src/content/docs/guides/ansible/depannage.md).
+
+## Installer sans page d’accueil
+
+Le portail est activé par défaut. Pour ne pas installer l’accueil, l’en-tête
+partagé et le catalogue, ajouter dans `site.yml` avant le déploiement :
+
+```yaml
+galaxy_home_enabled: false
+```
+
+Charger ce fichier avec `-e @site.yml` lors de l’installation. Ansible ignore
+la copie des trois répertoires et de la carte de repli. nginx redirige `/` vers
+`/mviewer/` ; les retours Studio utilisent aussi cette destination.
+
+Sur une cible déjà installée, rejouer le déploiement complet avec le même
+`site.yml` pour adapter nginx et l’environnement Studio. Les fichiers statiques
+déjà présents sont conservés sur disque, mais ne sont plus exposés par nginx.
+`update_home.yml` ignore la copie lorsque cette option est désactivée ; il ne
+modifie pas les routes du serveur.
+
+## Personnaliser et redéployer l’accueil
+
+Le rôle `nginx` déploie les sources locales sans les interpréter comme des
+templates Jinja : les scripts JavaScript et les templates du catalogue sont
+conservés à l’identique.
+
+| Source sur le poste de contrôle | Destination par défaut | Usage |
+|---|---|---|
+| `home/` | `/var/www/mviewergalaxy/home/` | Page d’accueil, image, carrousel et `home/config.js` |
+| `header/` | `/var/www/mviewergalaxy/header/` | Navigation, session, thème et configuration partagés |
+| `catalogue/` | `/var/www/mviewergalaxy/catalogue/` | Catalogue, logos, favoris et templates |
+
+Modifier `header/config.js` pour le nom, le logo et les liens de navigation.
+Modifier `home/config.js` pour l’image de l’accueil, et `catalogue/data.json`
+pour les cartes et leurs favoris.
+
+Lorsque le catalogue est vide, l’accueil propose `/apps/default.xml`. Le rôle
+`nginx` installe cette carte depuis `resources/mviewer/apps/default.xml` seulement
+si elle est absente de `mviewer_apps_dir`. Une carte existante est conservée.
+Pour fournir un autre exemple initial, définir `mviewer_default_map_source` dans
+`site.yml` avant le premier déploiement.
+
+Les destinations se configurent avec `galaxy_home_dir`, `galaxy_header_dir`
+et `galaxy_catalogue_dir`. Les sources se configurent avec les variables
+`galaxy_home_source_dir`, `galaxy_header_source_dir` et
+`galaxy_catalogue_source_dir` dans `site.yml`.
+
+Sur un serveur déjà installé, recopier les configurations, couleurs, images et
+fichiers statiques depuis `ansible/` :
+
+```bash
+ansible-playbook playbooks/update_home.yml -e @site.yml --ask-become-pass
+```
+
+Omettre `-e @site.yml` s’il n’existe pas. Aucun secret applicatif n’est nécessaire
+pour ce playbook ; charger le Vault si les mots de passe SSH/sudo s’y trouvent.
+
+Le playbook met à jour `home/`, `header/` et `catalogue/` uniquement. Aucun
+redémarrage de service n’est nécessaire ; recharger la page dans le navigateur.
+Ajouter `--check --diff` pour prévisualiser les changements. Pour modifier aussi
+les routes ou la configuration nginx, utiliser `playbooks/install.yml --tags nginx`.
+
+Pour le conteneur de test :
+
+```bash
+ansible-playbook playbooks/update_home.yml -i "$MVIEWER_TEST_DIR/hosts.ini"
+```
+
+Ajouter `-e @site.yml` si les chemins de déploiement ont été personnalisés.
+Les variables de connexion placées dans le Vault se chargent avec
+`-e @"$MVIEWER_TEST_DIR/vars.json" --ask-vault-pass`.
+
+La racine `/` redirige vers `/accueil/`. Les chemins `/assets/` et `/config.js`
+servent les ressources de l’accueil ; `/header/` et `/catalogue/` servent les
+deux autres répertoires. Le lien Studio pointe directement vers `/mviewerstudio/`. Si son préfixe est
+personnalisé, adapter ce lien dans `header/config.js`, `home/index.html` et
+`catalogue/index.html`. Les routes `/portal/login`, `/portal/logout` et
+`/portal/session` utilisent le préfixe Studio configuré.
+
+En mode OIDC, la configuration Studio renvoie les visiteurs anonymes vers
+`/accueil/`. La connexion depuis l’en-tête revient à l’accueil, et nginx adapte
+le retour après déconnexion vers `/accueil/`. Autoriser cette URL publique dans
+les URI de retour après déconnexion du fournisseur OIDC. Ces changements Studio
+s’appliquent avec le déploiement complet de l’étape 8.
 
 ## Ajouter ou mettre à jour les extensions GeoServer
 
@@ -587,7 +676,9 @@ Sur la cible, utiliser les chemins suivants (valeurs par défaut) :
 
 | Chemin | Contenu |
 |---|---|
-| `/var/www/mviewergalaxy/home/` | Accueil statique |
+| `/var/www/mviewergalaxy/home/` | Accueil statique copié depuis `home/` |
+| `/var/www/mviewergalaxy/header/` | En-tête et thème partagés copiés depuis `header/` |
+| `/var/www/mviewergalaxy/catalogue/` | Catalogue copié depuis `catalogue/` |
 | `/var/www/mviewergalaxy/mviewer/` | Sources Mviewer |
 | `/srv/apps/mviewerstudio/` | Sources Studio et virtualenv `.venv/`, appartenant à root |
 | `/srv/data/mviewer/apps/` | Configurations des cartes |

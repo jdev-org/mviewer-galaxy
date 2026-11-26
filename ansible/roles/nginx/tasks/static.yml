@@ -1,0 +1,43 @@
+---
+- name: Vérifier les sources statiques sur le poste de contrôle
+  ansible.builtin.stat:
+    path: "{{ item.src }}"
+  delegate_to: localhost
+  become: false
+  loop: "{{ galaxy_static_directories }}"
+  loop_control:
+    label: "{{ item.name }}"
+  register: galaxy_static_sources
+
+- name: Exiger les répertoires statiques du dépôt
+  ansible.builtin.assert:
+    that:
+      - item.stat.isdir | default(false)
+    fail_msg: "Source {{ item.item.src }} absente sur le poste de contrôle. Récupérer home/, header/ et catalogue/ avec le dépôt."
+  loop: "{{ galaxy_static_sources.results }}"
+  loop_control:
+    label: "{{ item.item.name }}"
+
+- name: Créer les répertoires statiques du site
+  ansible.builtin.file:
+    path: "{{ item.dest }}"
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+  loop: "{{ galaxy_static_directories }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+# copy préserve les fichiers JS et les expressions {{config}} du catalogue.
+- name: Copier les fichiers statiques depuis le poste de contrôle
+  ansible.builtin.copy:
+    src: "{{ item.src }}/"
+    dest: "{{ item.dest }}/"
+    owner: root
+    group: root
+    mode: 'u=rwX,go=rX'
+    directory_mode: '0755'
+  loop: "{{ galaxy_static_directories }}"
+  loop_control:
+    label: "{{ item.name }}"
